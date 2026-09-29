@@ -111,6 +111,12 @@ h2 {
 }
 .tags a:hover { border-color: var(--accent); text-decoration: none; }
 
+/* Service */
+.service { list-style: none; padding: 0; margin: 0; }
+.service li { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 5px 0; }
+.service b { font-weight: 600; }
+.service span { color: var(--muted); }
+
 /* Education */
 .edu { list-style: none; padding: 0; margin: 0; }
 .edu li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; }
@@ -124,5 +130,6 @@ footer { margin-top: 64px; color: var(--muted); font-size: 0.82rem; }
   .photo { width: 128px; }
   .news li { grid-template-columns: 1fr; gap: 0; padding: 7px 0; }
   .pub { grid-template-columns: 112px 1fr; gap: 14px; }
+  .service li { grid-template-columns: 1fr; gap: 0; padding: 6px 0; }
 }
 .authors sup { font-size: 0.7em; margin-left: 1px; }
