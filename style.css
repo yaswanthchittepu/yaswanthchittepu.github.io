@@ -50,7 +50,7 @@ h1, h2, h3 { font-family: "Source Serif 4", Georgia, serif; font-weight: 600; }
 .photo {
   width: 160px;
   height: auto;
-  aspect-ratio: 904 / 998;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
   border-radius: 10px;
   flex-shrink: 0;
