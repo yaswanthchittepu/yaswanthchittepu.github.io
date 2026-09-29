@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <style>
   :root {
     --ground: #F6F7FA;
@@ -145,7 +148,7 @@
     display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center;
   }
   .eq-big {
-    font: 400 clamp(2rem, 5.6vw, 3.4rem)/1 var(--serif); font-style: italic;
+    font: 400 1rem/1.2 var(--sans);
     white-space: nowrap; letter-spacing: -0.01em;
   }
   .eq-big .op { font-style: normal; color: var(--ink-3); padding-inline: 0.1em; }
@@ -208,7 +211,7 @@
   .derive { margin-top: 2.5rem; display: grid; gap: 1.25rem; }
   .derive .row { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.25rem; align-items: baseline; }
   .derive .key { font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--ink-3); text-transform: uppercase; }
-  .derive .v { font: 400 1.18rem/1.55 var(--serif); overflow-x: auto; }
+  .derive .v { min-width: 0; }
   .derive .v .note { display: block; font: 400 0.93rem/1.55 var(--sans); color: var(--ink-2); margin-top: 0.3rem; font-style: normal; }
   .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; font-size: 0.86em; margin-inline: 0.1em; }
   .frac > span:first-child { border-bottom: 1px solid currentColor; padding-inline: 0.2em; }
@@ -300,7 +303,6 @@
   @media (max-width: 760px) {
     header.hero { padding-block: 2.75rem 2rem; }
     .thesis { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
-    .eq-big { font-size: clamp(1.5rem, 7.4vw, 2.4rem); }
     .contrast, .wr, .stat-row { grid-template-columns: minmax(0, 1fr); }
     .pipe { grid-template-columns: minmax(0, 1fr); }
     .pipe > div + div { border-left: 0; border-top: 1px solid var(--rule); }
@@ -312,6 +314,20 @@
     .chip { font-size: 0; padding: 0.55rem 0; }
     .chip svg { width: 0.95rem; height: 0.95rem; }
   }
+
+  /* KaTeX: color classes reuse the page tokens, so math follows the theme */
+  .katex .r { color: var(--reward); }
+  .katex .c { color: var(--cost); }
+  .katex .k { color: var(--conf); }
+  .katex { font-size: 1.08em; }
+  .eq-big .katex { font-size: clamp(1.7rem, 4.6vw, 2.9rem); }
+  .contrast .formula .katex { font-size: 1.05em; }
+  .derive .v .eqs { overflow-x: auto; overflow-y: hidden; }
+  .derive .v .katex-display { margin: 0.1rem 0 0.5rem; text-align: left; }
+  .derive .v .katex-display > .katex { text-align: left; font-size: 1.12em; }
+  .derive .row { align-items: start; }
+  .derive .key { padding-top: 0.55rem; }
+  .derive .v .note { margin-top: 0.15rem; }
 </style>
 </head>
 <body>
@@ -354,8 +370,8 @@
     </nav>
 
     <div class="thesis">
-      <div class="eq-big" aria-label="Probability that g of the algorithm's output is at most zero is at least one minus delta">Pr(<span class="c">g</span>(<span style="font-style:normal">a</span>(D)) <span class="op">≤</span> 0) <span class="op">≥</span> <span class="k">1 − δ</span></div>
-      <p><strong>Safe with high probability, not just on the training prompts.</strong> HC-RLHF maximizes <span class="r">helpfulness</span> under a deliberately pessimistic <span class="c">harmlessness</span> constraint, then runs a held-out statistical safety test. A model is returned only if it passes, so the chance of shipping an unsafe model is at most <span class="m k">δ</span>.</p>
+      <div class="eq-big" aria-label="Probability that g of the algorithm's output is at most zero is at least one minus delta">\(\Pr\big(\C{g}(\mathcal{A}(D)) \le 0\big) \ge \K{1-\delta}\)</div>
+      <p><strong>Safe with high probability, not just on the training prompts.</strong> HC-RLHF maximizes <span class="r">helpfulness</span> under a deliberately pessimistic <span class="c">harmlessness</span> constraint, then runs a held-out statistical safety test. A model is returned only if it passes, so the chance of shipping an unsafe model is at most \(\K{\delta}\).</p>
     </div>
   </header>
 
@@ -372,12 +388,12 @@
     <div class="contrast">
       <div class="before">
         <div class="tag">Safe RLHF: constraint on the mean</div>
-        <div class="formula">max 𝔼[<span class="r">r</span>] &nbsp;<span class="w">s.t.</span>&nbsp; 𝔼[<span class="c">c</span>] ≤ τ</div>
+        <div class="formula">\(\max_\theta\ \mathbb{E}[\R{r}] \ \ \text{s.t.}\ \ \mathbb{E}[\C{c}] \le \tau\)</div>
         <p>The constraint holds on average over training prompts. Whether it still holds on new prompts depends on the dataset, the threshold and luck, and there is no way to know in advance.</p>
       </div>
       <div class="after">
         <div class="tag">HC-RLHF: constraint with a confidence bound</div>
-        <div class="formula">max 𝔼[<span class="r">r</span>] &nbsp;<span class="w">s.t.</span>&nbsp; 𝔼̂[<span class="c">c</span>] + <span class="k">K(δ)</span>·𝕊̂[<span class="c">c</span>] ≤ τ</div>
+        <div class="formula">\(\max_\theta\ \mathbb{E}[\R{r}] \ \ \text{s.t.}\ \ \hat{\mathbb{E}}[\C{c}] + \K{K(\delta)}\,\hat{\mathbb{S}}[\C{c}] \le \tau\)</div>
         <p>Train against an upper confidence bound on cost, not the mean, then verify on data the optimizer never saw. The guarantee comes from the <a href="https://www.science.org/doi/10.1126/science.aag3311">Seldonian framework</a>.</p>
       </div>
     </div>
@@ -387,17 +403,17 @@
     <div class="col">
       <p class="eyebrow">How it works</p>
       <h2>Train pessimistically, then test on held-out data</h2>
-      <p>HC-RLHF is the first <a href="https://www.science.org/doi/10.1126/science.aag3311">Seldonian algorithm</a> applied to RLHF. It uses the same decoupled preference data as Safe RLHF: a reward model <span class="m r">r<sub>φ</sub></span> is trained on helpfulness labels and a cost model <span class="m c">C<sub>ψ</sub></span> on harmfulness labels, both with the standard Bradley–Terry loss. What changes is how the policy is optimized and what happens before it is returned.</p>
+      <p>HC-RLHF is the first <a href="https://www.science.org/doi/10.1126/science.aag3311">Seldonian algorithm</a> applied to RLHF. It uses the same decoupled preference data as Safe RLHF: a reward model \(\R{r_\phi}\) is trained on helpfulness labels and a cost model \(\C{C_\psi}\) on harmfulness labels, both with the standard Bradley–Terry loss. What changes is how the policy is optimized and what happens before it is returned.</p>
     </div>
 
     <div class="pipe">
       <div>
         <span class="stepno">Step 1</span>
         <h3>Partition the data</h3>
-        <div class="sf">D → D<sub>c</sub> , D<sub>s</sub></div>
+        <div class="sf">\(D \to D_c,\ D_s\)</div>
         <p>Split the prompts into a candidate-selection set used for training and a safety set held out for the final test.</p>
         <div class="split" aria-hidden="true"><span></span><span></span></div>
-        <div class="split-lab" aria-hidden="true"><span class="r">D<sub>c</sub> e.g. 72k</span><span class="k">D<sub>s</sub> 4k</span></div>
+        <div class="split-lab" aria-hidden="true"><span class="r">\(D_c\) e.g. 72k</span><span class="k">\(D_s\) 4k</span></div>
       </div>
       <div>
         <span class="stepno">Step 2</span>
@@ -408,38 +424,38 @@
       <div>
         <span class="stepno">Step 3</span>
         <h3>Safety test</h3>
-        <div class="sf">Student's t upper bound on D<sub>s</sub></div>
+        <div class="sf">Student's t upper bound on \(D_s\)</div>
         <p>Score the candidate's responses on the held-out prompts with the cost model and compute a (1 − δ) upper confidence bound on its expected cost.</p>
         <div class="outcomes">
-          <div class="outcome pass">U<sub>ttest</sub> ≤ τ &nbsp;→&nbsp; return the model</div>
+          <div class="outcome pass">\(U_{\text{ttest}} \le \tau\) &nbsp;→&nbsp; return the model</div>
           <div class="outcome fail">otherwise &nbsp;→&nbsp; return <b>No Solution Found</b></div>
         </div>
       </div>
     </div>
 
-    <div class="derive col">
+    <div class="derive col" style="max-width:52rem">
       <div class="row">
         <div class="key">The guarantee</div>
-        <div class="v m">Pr(<span class="c">g</span>(a(D)) ≤ 0) ≥ <span class="k">1 − δ</span>, &nbsp; <span class="c">g</span>(θ) = 𝔼<sub>x, y∼π<sub>θ</sub></sub>[<span class="c">C<sub>ψ</sub>(x, y)</span>] − τ
+        <div class="v"><div class="eqs">\[\Pr\big(\C{g}(\mathcal{A}(D)) \le 0\big) \ge \K{1-\delta}\]\[\C{g}(\theta) = \mathbb{E}_{x\sim\mathcal{D}_x,\; y\sim\pi_\theta(\cdot\mid x)}\big[\C{C_\psi(x,y)}\big] - \tau\]</div>
           <span class="note">This is the Seldonian condition. Returning No Solution Found counts as safe, so the algorithm can decline instead of shipping a model it cannot vouch for.</span>
         </div>
       </div>
       <div class="row">
         <div class="key">Pessimistic training constraint</div>
-        <div class="v m">𝔼̂[<span class="c">c</span>] + <span class="k">K(δ)</span> 𝕊̂[<span class="c">c</span>] ≤ τ, &nbsp; <span class="k">K(δ)</span> = ρ<sub>1</sub><span class="frac"><span>t<sub>1−δ, B−1</sub></span><span>√B</span></span> + ρ<sub>2</sub><span class="frac"><span>t<sub>1−δ, n<sub>s</sub>−1</sub></span><span>√n<sub>s</sub></span></span>
-          <span class="note">The first term reflects the batch size B seen at each step. The second scales with the safety set size n<sub>s</sub>, so training anticipates the test the model will face. We use ρ<sub>1</sub> = 4 and ρ<sub>2</sub> = 2.</span>
+        <div class="v"><div class="eqs">\[\hat{\mathbb{E}}\big[\C{C_\psi(x,y)}\big] + \K{K(\delta)}\,\hat{\mathbb{S}}\big[\C{C_\psi(x,y)}\big] \le \tau\]\[\K{K(\delta)} = \rho_1\,\frac{t_{1-\delta,\,B-1}}{\sqrt{B}} + \rho_2\,\frac{t_{1-\delta,\,n_s-1}}{\sqrt{n_s}}\]</div>
+          <span class="note">The first term reflects the batch size \(B\) seen at each step. The second scales with the safety set size \(n_s\), so training anticipates the test the model will face. We use \(\rho_1 = 4\) and \(\rho_2 = 2\).</span>
         </div>
       </div>
       <div class="row">
         <div class="key">Policy gradient</div>
-        <div class="v m">R̂(x, y) = <span class="r">r̃</span> − λ<span class="c">c</span> − λ<span class="k">K(δ)</span> <span class="frac"><span><span class="c">c</span><sup>2</sup> − 2𝔼[<span class="c">c</span>]<span class="c">c</span></span><span>2𝕊[<span class="c">c</span>]</span></span>
-          <span class="note">Differentiating the Lagrangian gives a REINFORCE-style gradient with this augmented reward, where r̃ is the KL-regularized reward. The mean and standard deviation of cost are tracked with running estimates. We use the leave-one-out baseline (RLOO) with two responses per prompt.</span>
+        <div class="v"><div class="eqs">\[\begin{aligned}\hat R(x,y) &= \R{\tilde r(x,y)} - \lambda\,\C{C_\psi(x,y)} \\ &\quad - \lambda\,\K{K(\delta)}\,\frac{\C{C_\psi(x,y)}^2 - 2\,\mathbb{E}[\C{C_\psi}]\,\C{C_\psi(x,y)}}{2\,\mathbb{S}[\C{C_\psi}]}\end{aligned}\]\[\nabla_\theta \mathcal{L}(\theta,\lambda) = \mathbb{E}_{x,\,y\sim\pi_\theta}\big[\hat R(x,y)\,\nabla_\theta \log \pi_\theta(y\mid x)\big]\]</div>
+          <span class="note">Differentiating the Lagrangian gives a REINFORCE-style gradient with this augmented reward, where \(\tilde r\) is the KL-regularized reward. The mean and standard deviation of cost are tracked with running estimates. We use the leave-one-out baseline (RLOO) with two responses per prompt.</span>
         </div>
       </div>
       <div class="row">
         <div class="key">Safety test</div>
-        <div class="v m">U<sub>ttest</sub>(ĝ) = <span class="frac"><span>1</span><span>m</span></span>Σ ĝ<sub>i</sub> + <span class="frac"><span>σ(ĝ)</span><span>√m</span></span> t<sub>1−δ, m−1</sub>
-          <span class="note">Each ĝ<sub>i</sub> is the cost of one response on a held-out prompt, so the estimates are i.i.d. and unbiased, and the t-test bound holds with probability at least 1 − δ.</span>
+        <div class="v"><div class="eqs">\[U_{\text{ttest}}(\hat g) = \frac{1}{m}\sum_{i=1}^{m} \hat g_i + \frac{\sigma(\hat g)}{\sqrt{m}}\; t_{1-\delta,\,m-1}\]\[\Pr\big(g(\theta_c) \le U_{\text{ttest}}(\hat g)\big) \ge \K{1-\delta}\]</div>
+          <span class="note">Each \(\hat g_i = C_\psi(x_i, y_i)\) is the cost of one response on a held-out prompt, so the estimates are i.i.d. and unbiased, and the t-test bound holds with probability at least \(1-\delta\).</span>
         </div>
       </div>
     </div>
@@ -449,7 +465,7 @@
     <div class="col">
       <p class="eyebrow">Result 1 · Harmfulness</p>
       <h2>Far fewer responses cross the harm threshold</h2>
-      <p>Each point is one test-set response, scored by the trained reward and cost models. Responses to the right of the dashed line (cost above τ = 0) are judged harmful. All three models share the same reward and cost models; the only difference is the safety constraint used during RL.</p>
+      <p>Each point is one test-set response, scored by the trained reward and cost models. Responses to the right of the dashed line (cost above \(\tau = 0\)) are judged harmful. All three models share the same reward and cost models; the only difference is the safety constraint used during RL.</p>
     </div>
 
     <figure class="fig" id="fig-scatter">
@@ -582,7 +598,7 @@
 
     <aside class="scope">
       <h3>What the guarantee assumes</h3>
-      <p><strong>Harm is measured by the learned cost model.</strong> The guarantee bounds expected cost under <span class="m c">C<sub>ψ</sub></span>. It is only as meaningful as the cost model's judgments of harm.</p>
+      <p><strong>Harm is measured by the learned cost model.</strong> The guarantee bounds expected cost under \(\C{C_\psi}\). It is only as meaningful as the cost model's judgments of harm.</p>
       <p><strong>Normality of the sample mean.</strong> The Student's t bound needs the mean cost to be approximately normal, which the central limit theorem supports for large safety sets. Hoeffding's inequality would avoid this assumption, but it requires costs with a known bounded range, which a learned cost model does not have. That is why HC-RLHF uses the t-test.</p>
       <p><strong>Deployment prompts look like training prompts.</strong> The guarantee assumes a stationary prompt distribution. Distribution shift, such as new usage patterns or adversarial rephrasing, can weaken it and is left to future work.</p>
     </aside>
@@ -666,6 +682,18 @@
     } catch (e) { selectBib(); done(false); }
   });
 })();
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  if (!window.renderMathInElement) return;
+  renderMathInElement(document.body, {
+    delimiters: [{ left: "\\[", right: "\\]", display: true }, { left: "\\(", right: "\\)", display: false }],
+    macros: { "\\R": "\\htmlClass{r}{#1}", "\\C": "\\htmlClass{c}{#1}", "\\K": "\\htmlClass{k}{#1}" },
+    trust: function (ctx) { return ctx.command === "\\htmlClass"; },
+    strict: false,
+    throwOnError: false
+  });
+});
 </script>
 </body>
 </html>
