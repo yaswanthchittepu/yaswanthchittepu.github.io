@@ -1,2 +1,12 @@
 .DS_Store
 images/YC.jpeg
+Yaswanth-Chittepu-Resume-*.pdf
+cv/*.aux
+cv/*.log
+cv/*.out
+cv/*.fls
+cv/*.fdb_latexmk
+cv/*.synctex.gz
+cv/private.tex
+cv/cv.pdf
+cv/cv-web.pdf
