@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HC-RLHF: High-Confidence Safe RLHF</title>
+<meta name="description" content="HC-RLHF aligns language models for helpfulness while guaranteeing, with high probability, that the returned model satisfies a harmlessness constraint. Published at RLC 2025.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+<style>
+  :root {
+    --ground: #F6F7FA;
+    --surface: #FFFFFF;
+    --ink: #141827;
+    --ink-2: #4A5068;
+    --ink-3: #6E7489;
+    --rule: #DDE1EA;
+    --reward: #1D5FB4;
+    --reward-wash: rgba(29, 95, 180, 0.10);
+    --cost: #B8324A;
+    --cost-wash: rgba(184, 50, 74, 0.08);
+    --conf: #9A6A00;
+    --conf-wash: rgba(176, 122, 6, 0.12);
+    --ok: #1F7A4D;
+    --ok-wash: rgba(31, 122, 77, 0.10);
+    --tie: #9AA0B2;
+    --plate: #FFFFFF;
+    --code-bg: #EEF0F5;
+
+    --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --measure: 42rem;
+    --wide: 64rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #10131C;
+      --surface: #171B27;
+      --ink: #E7EAF2;
+      --ink-2: #A9B0C4;
+      --ink-3: #868DA3;
+      --rule: #2A3042;
+      --reward: #7AA8F2;
+      --reward-wash: rgba(122, 168, 242, 0.14);
+      --cost: #F0808F;
+      --cost-wash: rgba(240, 128, 143, 0.10);
+      --conf: #E7B53C;
+      --conf-wash: rgba(231, 181, 60, 0.14);
+      --ok: #5CC593;
+      --ok-wash: rgba(92, 197, 147, 0.12);
+      --tie: #555D73;
+      --plate: #F4F5F8;
+      --code-bg: #1C2130;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #10131C;
+    --surface: #171B27;
+    --ink: #E7EAF2;
+    --ink-2: #A9B0C4;
+    --ink-3: #868DA3;
+    --rule: #2A3042;
+    --reward: #7AA8F2;
+    --reward-wash: rgba(122, 168, 242, 0.14);
+    --cost: #F0808F;
+    --cost-wash: rgba(240, 128, 143, 0.10);
+    --conf: #E7B53C;
+    --conf-wash: rgba(231, 181, 60, 0.14);
+    --ok: #5CC593;
+    --ok-wash: rgba(92, 197, 147, 0.12);
+    --tie: #555D73;
+    --plate: #F4F5F8;
+    --code-bg: #1C2130;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 400 1.0625rem/1.65 var(--sans);
+    padding-inline: 20px;
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--reward); text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--reward); outline-offset: 3px; border-radius: 3px; }
+
+  .wrap { max-width: var(--wide); margin-inline: auto; }
+  .col { max-width: var(--measure); }
+
+  /* math vocabulary: each quantity keeps its color everywhere */
+  .r { color: var(--reward); }
+  .c { color: var(--cost); }
+  .k { color: var(--conf); }
+  .m { font-family: var(--serif); font-style: italic; }
+  .m sub, .m sup { font-style: normal; font-size: 0.68em; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- hero ---------- */
+  header.hero { padding-block: 4.5rem 3rem; display: grid; gap: 1.5rem; }
+  .venue {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem;
+    font: 500 0.8rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
+  }
+  .venue .badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.8rem; border-radius: 999px;
+    background: var(--ok-wash); color: var(--ok); border: 1px solid currentColor;
+  }
+  .venue .badge svg { width: 0.85rem; height: 0.85rem; flex: none; }
+  .venue .badge b { color: var(--ink); font-weight: 600; }
+  h1 {
+    font: 500 clamp(2.1rem, 5vw, 3.35rem)/1.08 var(--serif);
+    letter-spacing: -0.015em; margin: 0; max-width: 24ch; text-wrap: balance;
+  }
+  h1 em { font-style: italic; }
+  .authors { display: grid; gap: 0.35rem; font-size: 1rem; }
+  .authors ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+  .authors li { white-space: nowrap; }
+  .authors sup { font: 500 0.7em var(--mono); color: var(--ink-3); margin-left: 1px; }
+  .affil { color: var(--ink-2); font-size: 0.92rem; }
+  .affil sup { font: 500 0.7em var(--mono); color: var(--ink-3); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font: 500 0.92rem/1 var(--sans); padding: 0.65rem 1rem; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--surface); color: var(--ink); text-decoration: none;
+  }
+  .btn:hover { border-color: var(--ink-3); text-decoration: none; }
+  .btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .btn.primary:hover { opacity: 0.88; }
+  .btn svg { width: 1rem; height: 1rem; flex: none; }
+
+  /* the thesis: the guarantee itself */
+  .thesis {
+    margin-top: 1.5rem; border-top: 1px solid var(--rule); padding-top: 2.25rem;
+    display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center;
+  }
+  .eq-big {
+    font: 400 clamp(2rem, 5.6vw, 3.4rem)/1 var(--serif); font-style: italic;
+    white-space: nowrap; letter-spacing: -0.01em;
+  }
+  .eq-big .op { font-style: normal; color: var(--ink-3); padding-inline: 0.1em; }
+  .thesis p { margin: 0; font-size: 1.12rem; color: var(--ink-2); max-width: 34rem; }
+  .thesis p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 3.25rem; border-top: 1px solid var(--rule); }
+  .eyebrow {
+    font: 500 0.75rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 0.9rem;
+  }
+  h2 {
+    font: 500 clamp(1.6rem, 3.4vw, 2.15rem)/1.15 var(--serif);
+    letter-spacing: -0.01em; margin: 0 0 1.1rem; text-wrap: balance; max-width: 30ch;
+  }
+  h3 { font: 600 1.02rem/1.35 var(--sans); margin: 0 0 0.4rem; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink-2); }
+
+  details.abstract { margin-top: 0.5rem; }
+  details.abstract summary {
+    cursor: pointer; font: 500 0.92rem var(--sans); color: var(--ink-2);
+    list-style: none; display: inline-flex; gap: 0.4rem; align-items: center;
+  }
+  details.abstract summary::-webkit-details-marker { display: none; }
+  details.abstract summary::before { content: "+"; font-family: var(--mono); color: var(--ink-3); }
+  details.abstract[open] summary::before { content: "−"; }
+  details.abstract p { margin-top: 0.9rem; color: var(--ink-2); font-size: 0.98rem; }
+
+  .contrast { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.75rem; }
+  .contrast > div { padding: 1.25rem 1.35rem; border: 1px solid var(--rule); border-radius: 10px; }
+  .contrast .after { background: var(--surface); }
+  .contrast .tag { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 0.7rem; }
+  .contrast .formula { font: 400 1.25rem/1.35 var(--serif); font-style: italic; margin-bottom: 0.6rem; overflow-x: auto; }
+  .contrast .formula .w { color: var(--ink-3); font-style: normal; font-size: 0.8em; }
+  .contrast p { margin: 0; font-size: 0.95rem; color: var(--ink-2); }
+
+  /* pipeline */
+  .pipe {
+    margin-top: 2rem; display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr) minmax(0, 1.1fr);
+    border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); overflow: hidden;
+  }
+  .pipe > div { padding: 1.5rem 1.4rem; position: relative; }
+  .pipe > div + div { border-left: 1px solid var(--rule); }
+  .pipe .stepno { display: block; font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 0.8rem; }
+  .pipe .sf { font: 400 1.08rem/1.4 var(--serif); font-style: italic; margin: 0.35rem 0 0.7rem; }
+  .pipe p { font-size: 0.95rem; color: var(--ink-2); margin: 0; }
+  .split { display: flex; height: 0.7rem; border-radius: 999px; overflow: hidden; margin: 0.9rem 0 0.4rem; }
+  .split span:first-child { flex: 18; background: var(--reward); }
+  .split span:last-child { flex: 1; background: var(--conf); margin-left: 2px; }
+  .split-lab { display: flex; justify-content: space-between; font: 400 0.75rem var(--mono); color: var(--ink-3); }
+  .outcomes { display: grid; gap: 0.45rem; margin-top: 0.9rem; }
+  .outcome { display: flex; align-items: center; gap: 0.55rem; font: 500 0.85rem/1.3 var(--sans); padding: 0.45rem 0.7rem; border-radius: 8px; }
+  .outcome.pass { background: var(--ok-wash); color: var(--ok); }
+  .outcome.fail { background: var(--code-bg); color: var(--ink-2); }
+  .outcome b { font-family: var(--mono); font-weight: 500; }
+
+  .derive { margin-top: 2.5rem; display: grid; gap: 1.25rem; }
+  .derive .row { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.25rem; align-items: baseline; }
+  .derive .key { font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--ink-3); text-transform: uppercase; }
+  .derive .v { font: 400 1.18rem/1.55 var(--serif); overflow-x: auto; }
+  .derive .v .note { display: block; font: 400 0.93rem/1.55 var(--sans); color: var(--ink-2); margin-top: 0.3rem; font-style: normal; }
+  .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; font-size: 0.86em; margin-inline: 0.1em; }
+  .frac > span:first-child { border-bottom: 1px solid currentColor; padding-inline: 0.2em; }
+
+  /* ---------- figures ---------- */
+  .fig { margin: 2rem 0 0; display: grid; gap: 0.9rem; }
+  .plate { background: var(--plate); border: 1px solid var(--rule); border-radius: 12px; padding: clamp(0.4rem, 1.5vw, 1rem); }
+  .plate img { margin-inline: auto; }
+  .fig figcaption { font-size: 0.9rem; color: var(--ink-2); max-width: var(--measure); }
+  .fig-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+  .fig-grid .plate { display: grid; gap: 0.35rem; align-content: start; }
+  .fig-grid .plate .cap { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: #5A6075; text-align: center; padding-block: 0.35rem 0.15rem; }
+  .fig-grid .plate.ours { outline: 2px solid var(--ok); outline-offset: -1px; }
+
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--surface); gap: 2px; }
+  .seg button {
+    font: 500 0.88rem/1 var(--sans); color: var(--ink-2); background: transparent;
+    border: 0; border-radius: 999px; padding: 0.55rem 0.95rem; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+  .fig-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; }
+  .fig-head .legend-note { font-size: 0.88rem; color: var(--ink-2); }
+
+  /* win-rate matrix */
+  .wr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 1.5rem 2.5rem; align-items: start; margin-top: 1.5rem; }
+  .matrix { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px; font-size: 0.9rem; }
+  .matrix .h { font: 500 0.72rem/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; justify-content: center; text-align: center; padding: 0.3rem; }
+  .matrix .h.rowh { justify-content: flex-end; text-align: right; padding-right: 0.6rem; }
+  .matrix .cell { border-radius: 10px; padding: 1.1rem 0.8rem; text-align: center; border: 1px solid var(--rule); background: var(--surface); position: relative; overflow: hidden; }
+  .matrix .cell .fill { position: absolute; inset: auto 0 0 0; background: var(--reward-wash); }
+  .matrix .cell .pct { position: relative; display: block; font: 500 1.6rem/1.1 var(--mono); font-variant-numeric: tabular-nums; color: var(--reward); }
+  .matrix .cell .n { position: relative; display: block; font: 400 0.78rem var(--mono); color: var(--ink-3); margin-top: 0.3rem; }
+  .matrix .corner { font: 500 0.72rem/1.3 var(--mono); color: var(--ink-3); display: flex; align-items: flex-end; justify-content: flex-end; padding: 0.3rem 0.6rem; text-align: right; }
+  .wr aside p { font-size: 0.95rem; color: var(--ink-2); }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.mini th, table.mini td { padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--rule); text-align: right; }
+  table.mini th:first-child, table.mini td:first-child { text-align: left; }
+  table.mini th { font: 500 0.7rem/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+  table.mini td { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  table.mini td:first-child { font-family: var(--sans); }
+
+  /* GPT-4 stacked bars */
+  .bars { margin-top: 1.75rem; display: grid; gap: 1.4rem; max-width: 46rem; }
+  .bars .group h3 { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 0.7rem; }
+  .bar-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 0.9rem; align-items: center; margin-bottom: 0.5rem; }
+  .bar-row .lab { font-size: 0.92rem; color: var(--ink-2); }
+  .bar { display: flex; height: 1.9rem; border-radius: 6px; overflow: hidden; font: 500 0.78rem/1 var(--mono); }
+  .bar span { display: flex; align-items: center; padding-inline: 0.5rem; white-space: nowrap; overflow: hidden; }
+  .bar .win { background: var(--ok); color: #fff; }
+  .bar .tie { background: var(--tie); color: #fff; }
+  .bar .lose { background: var(--cost); color: #fff; justify-content: flex-end; }
+  .bar-legend { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--ink-2); }
+  .bar-legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -1px; }
+
+  /* guarantee */
+  .stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.75rem; }
+  .stat { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1.2rem 1.3rem; }
+  .stat .lab { font: 500 0.72rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .val { font: 500 2.1rem/1.15 var(--mono); font-variant-numeric: tabular-nums; margin-top: 0.4rem; }
+  .stat p { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+
+  .tau { margin-top: 2rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 1.5rem; display: grid; gap: 1rem; }
+  .tau-grid { display: grid; grid-template-columns: 7.5rem repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; }
+  .tau-grid .h { font: 500 0.78rem/1 var(--mono); color: var(--ink-3); text-align: center; }
+  .tau-grid .rl { font-size: 0.92rem; font-weight: 500; }
+  .chip { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font: 500 0.82rem/1 var(--sans); padding: 0.6rem 0.3rem; border-radius: 8px; }
+  .chip.safe { background: var(--ok-wash); color: var(--ok); }
+  .chip.unsafe { background: var(--cost-wash); color: var(--cost); border: 1px solid currentColor; }
+  .chip svg { width: 0.8rem; height: 0.8rem; flex: none; }
+  .tau .src { font-size: 0.85rem; color: var(--ink-3); margin: 0; }
+
+  .scope { margin-top: 2rem; max-width: 46rem; border-left: 3px solid var(--conf); padding: 0.2rem 0 0.2rem 1.1rem; }
+  .scope p { color: var(--ink-2); margin: 0 0 0.6rem; font-size: 0.97rem; }
+  .scope p:last-child { margin: 0; }
+
+  .bib { position: relative; margin-top: 1.25rem; }
+  .bib pre {
+    margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1.25rem 1.35rem; overflow-x: auto;
+    font: 400 0.85rem/1.6 var(--mono); color: var(--ink);
+  }
+  .bib button {
+    position: absolute; top: 0.7rem; right: 0.7rem; font: 500 0.8rem/1 var(--sans); padding: 0.5rem 0.8rem; border-radius: 999px;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--rule); cursor: pointer;
+  }
+
+  footer { border-top: 1px solid var(--rule); padding-block: 2rem 3rem; color: var(--ink-3); font-size: 0.88rem; display: grid; gap: 0.5rem; }
+  footer p { margin: 0; max-width: var(--measure); }
+
+  @media (max-width: 760px) {
+    header.hero { padding-block: 2.75rem 2rem; }
+    .thesis { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+    .eq-big { font-size: clamp(1.5rem, 7.4vw, 2.4rem); }
+    .contrast, .wr, .stat-row { grid-template-columns: minmax(0, 1fr); }
+    .pipe { grid-template-columns: minmax(0, 1fr); }
+    .pipe > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+    .fig-grid { grid-template-columns: minmax(0, 1fr); }
+    .derive .row { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
+    .bar-row { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
+    .tau { padding: 1rem; }
+    .tau-grid { grid-template-columns: 5.2rem repeat(5, minmax(0, 1fr)); gap: 4px; }
+    .chip { font-size: 0; padding: 0.55rem 0; }
+    .chip svg { width: 0.95rem; height: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="venue">
+      <span class="badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Published at <b>RLC 2025</b></span>
+      <span>Reinforcement Learning Conference · Reinforcement Learning Journal, vol. 6</span>
+    </div>
+    <h1>Reinforcement Learning from Human Feedback with <em>High-Confidence Safety Guarantees</em></h1>
+    <div class="authors">
+      <ul>
+        <li>Yaswanth Chittepu<sup>1*</sup></li>
+        <li>Blossom Metevier<sup>1*</sup></li>
+        <li>Will Schwarzer<sup>1</sup></li>
+        <li>Austin Hoag<sup>2</sup></li>
+        <li>Scott Niekum<sup>1†</sup></li>
+        <li>Philip S. Thomas<sup>1†</sup></li>
+      </ul>
+      <div class="affil"><sup>1</sup> University of Massachusetts Amherst &nbsp;·&nbsp; <sup>2</sup> Sony AI &nbsp;·&nbsp; <sup>*</sup> Equal contribution &nbsp;·&nbsp; <sup>†</sup> Equal advising</div>
+    </div>
+    <nav class="links" aria-label="Paper resources">
+      <a class="btn primary" href="https://rlj.cs.umass.edu/2025/papers/RLJ_RLC_2025_62.pdf">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 1.75h5.5L12.25 4.5v9.75h-8.5z"/><path d="M9.25 1.75V4.75h3"/></svg>
+        Paper (PDF)
+      </a>
+      <a class="btn" href="https://arxiv.org/abs/2506.08266">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>
+        arXiv
+      </a>
+      <a class="btn" href="https://github.com/UMass-SCALAR-Lab/HC-RLHF">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg>
+        Code
+      </a>
+      <a class="btn" href="#cite">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 2.75h10v10.5H3z"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>
+        BibTeX
+      </a>
+    </nav>
+
+    <div class="thesis">
+      <div class="eq-big" aria-label="Probability that g of the algorithm's output is at most zero is at least one minus delta">Pr(<span class="c">g</span>(<span style="font-style:normal">a</span>(D)) <span class="op">≤</span> 0) <span class="op">≥</span> <span class="k">1 − δ</span></div>
+      <p><strong>Safe with high probability, not just on the training prompts.</strong> HC-RLHF maximizes <span class="r">helpfulness</span> under a deliberately pessimistic <span class="c">harmlessness</span> constraint, then runs a held-out statistical safety test. A model is returned only if it passes, so the chance of shipping an unsafe model is at most <span class="m k">δ</span>.</p>
+    </div>
+  </header>
+
+  <section id="problem">
+    <div class="col">
+      <p class="eyebrow">The problem</p>
+      <h2>Satisfying a safety constraint in training is not a guarantee</h2>
+      <p class="lede">Safe RLHF separates helpfulness from harmlessness and maximizes a reward model subject to a limit on a cost model. That gives much better control over the trade-off than standard RLHF. But the constraint is only enforced on the prompts seen during training, and nothing bounds the probability that the final model is unsafe once it is deployed. In medical, legal or educational settings, that probability is exactly what matters.</p>
+      <details class="abstract">
+        <summary>Read the abstract</summary>
+        <p>Existing approaches to language model alignment often treat safety as a tradeoff against helpfulness, which can lead to unacceptable responses in sensitive domains. To ensure reliable performance in such settings, we propose High-Confidence Safe Reinforcement Learning from Human Feedback (HC-RLHF), a method that provides high-confidence safety guarantees while maximizing helpfulness. Similar to previous methods, HC-RLHF explicitly decouples human preferences into helpfulness and harmlessness (safety), which are learned by training a reward model and a cost model, respectively. It then employs a two-step process to find safe solutions. In the first step, it optimizes the reward function under an intentionally pessimistic version of the cost constraint. In the second step, the trained model undergoes a safety test to verify whether its performance stays within an upper-confidence bound of the actual cost constraint. We provide a theoretical analysis of HC-RLHF, including a proof that it will not return an unsafe solution with a probability greater than a user-specified threshold. For our empirical analysis, we apply HC-RLHF to align three different language models (Qwen2-1.5B, Qwen2.5-3B, and LLaMa3.2-3B) with human preferences. Our results demonstrate that HC-RLHF produces safe models with high probability and can improve harmlessness and helpfulness compared to previous methods.</p>
+      </details>
+    </div>
+    <div class="contrast">
+      <div class="before">
+        <div class="tag">Safe RLHF: constraint on the mean</div>
+        <div class="formula">max 𝔼[<span class="r">r</span>] &nbsp;<span class="w">s.t.</span>&nbsp; 𝔼[<span class="c">c</span>] ≤ τ</div>
+        <p>The constraint holds on average over training prompts. Whether it still holds on new prompts depends on the dataset, the threshold and luck, and there is no way to know in advance.</p>
+      </div>
+      <div class="after">
+        <div class="tag">HC-RLHF: constraint with a confidence bound</div>
+        <div class="formula">max 𝔼[<span class="r">r</span>] &nbsp;<span class="w">s.t.</span>&nbsp; 𝔼̂[<span class="c">c</span>] + <span class="k">K(δ)</span>·𝕊̂[<span class="c">c</span>] ≤ τ</div>
+        <p>Train against an upper confidence bound on cost, not the mean, then verify on data the optimizer never saw. The guarantee comes from the <a href="https://www.science.org/doi/10.1126/science.aag3311">Seldonian framework</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="method">
+    <div class="col">
+      <p class="eyebrow">How it works</p>
+      <h2>Train pessimistically, then test on held-out data</h2>
+      <p>HC-RLHF uses the same decoupled preference data as Safe RLHF: a reward model <span class="m r">r<sub>φ</sub></span> is trained on helpfulness labels and a cost model <span class="m c">C<sub>ψ</sub></span> on harmfulness labels, both with the standard Bradley–Terry loss. What changes is how the policy is optimized and what happens before it is returned.</p>
+    </div>
+
+    <div class="pipe">
+      <div>
+        <span class="stepno">Step 1</span>
+        <h3>Partition the data</h3>
+        <div class="sf">D → D<sub>c</sub> , D<sub>s</sub></div>
+        <p>Split the prompts into a candidate-selection set used for training and a safety set held out for the final test.</p>
+        <div class="split" aria-hidden="true"><span></span><span></span></div>
+        <div class="split-lab" aria-hidden="true"><span class="r">D<sub>c</sub> e.g. 72k</span><span class="k">D<sub>s</sub> 4k</span></div>
+      </div>
+      <div>
+        <span class="stepno">Step 2</span>
+        <h3>Candidate selection</h3>
+        <div class="sf">RLOO with a variance-aware augmented reward</div>
+        <p>Maximize reward under the <em>inflated</em> cost bound, using Lagrangian dual ascent. Inflating the bound accounts for the many models compared during optimization, and makes it more likely that the candidate will pass the test.</p>
+      </div>
+      <div>
+        <span class="stepno">Step 3</span>
+        <h3>Safety test</h3>
+        <div class="sf">Student's t upper bound on D<sub>s</sub></div>
+        <p>Score the candidate's responses on the held-out prompts with the cost model and compute a (1 − δ) upper confidence bound on its expected cost.</p>
+        <div class="outcomes">
+          <div class="outcome pass">U<sub>ttest</sub> ≤ τ &nbsp;→&nbsp; return the model</div>
+          <div class="outcome fail">otherwise &nbsp;→&nbsp; return <b>No Solution Found</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="derive col">
+      <div class="row">
+        <div class="key">The guarantee</div>
+        <div class="v m">Pr(<span class="c">g</span>(a(D)) ≤ 0) ≥ <span class="k">1 − δ</span>, &nbsp; <span class="c">g</span>(θ) = 𝔼<sub>x, y∼π<sub>θ</sub></sub>[<span class="c">C<sub>ψ</sub>(x, y)</span>] − τ
+          <span class="note">This is the Seldonian condition. Returning No Solution Found counts as safe, so the algorithm can decline instead of shipping a model it cannot vouch for.</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="key">Pessimistic training constraint</div>
+        <div class="v m">𝔼̂[<span class="c">c</span>] + <span class="k">K(δ)</span> 𝕊̂[<span class="c">c</span>] ≤ τ, &nbsp; <span class="k">K(δ)</span> = ρ<sub>1</sub><span class="frac"><span>t<sub>1−δ, B−1</sub></span><span>√B</span></span> + ρ<sub>2</sub><span class="frac"><span>t<sub>1−δ, n<sub>s</sub>−1</sub></span><span>√n<sub>s</sub></span></span>
+          <span class="note">The first term reflects the batch size B seen at each step. The second scales with the safety set size n<sub>s</sub>, so training anticipates the test the model will face. We use ρ<sub>1</sub> = 4 and ρ<sub>2</sub> = 2.</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="key">Policy gradient</div>
+        <div class="v m">R̂(x, y) = <span class="r">r̃</span> − λ<span class="c">c</span> − λ<span class="k">K(δ)</span> <span class="frac"><span><span class="c">c</span><sup>2</sup> − 2𝔼[<span class="c">c</span>]<span class="c">c</span></span><span>2𝕊[<span class="c">c</span>]</span></span>
+          <span class="note">Differentiating the Lagrangian gives a REINFORCE-style gradient with this augmented reward, where r̃ is the KL-regularized reward. The mean and standard deviation of cost are tracked with running estimates. We use the leave-one-out baseline (RLOO) with two responses per prompt.</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="key">Safety test</div>
+        <div class="v m">U<sub>ttest</sub>(ĝ) = <span class="frac"><span>1</span><span>m</span></span>Σ ĝ<sub>i</sub> + <span class="frac"><span>σ(ĝ)</span><span>√m</span></span> t<sub>1−δ, m−1</sub>
+          <span class="note">Each ĝ<sub>i</sub> is the cost of one response on a held-out prompt, so the estimates are i.i.d. and unbiased, and the t-test bound holds with probability at least 1 − δ.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="col">
+      <p class="eyebrow">Result 1 · Harmfulness</p>
+      <h2>Far fewer responses cross the harm threshold</h2>
+      <p>Each point is one test-set response, scored by the trained reward and cost models. Responses to the right of the dashed line (cost above τ = 0) are judged harmful. All three models share the same reward and cost models; the only difference is the safety constraint used during RL.</p>
+    </div>
+
+    <figure class="fig" id="fig-scatter">
+      <div class="fig-head">
+        <div class="seg" role="group" aria-label="Model">
+          <button type="button" aria-pressed="true" data-model="llama3.2" data-name="Llama-3.2-3B">Llama-3.2-3B</button>
+          <button type="button" aria-pressed="false" data-model="qwen2.5" data-name="Qwen2.5-3B">Qwen2.5-3B</button>
+        </div>
+        <span class="legend-note">x: cost (harmfulness) · y: reward (helpfulness) · red line: τ = 0</span>
+      </div>
+      <div class="fig-grid">
+        <div class="plate"><img data-kind="sft" src="figs/scatter_sft_llama3.2.jpg" alt="Reward versus cost for SFT responses, Llama-3.2-3B." width="1100" height="821" loading="lazy"><div class="cap">SFT</div></div>
+        <div class="plate"><img data-kind="baseline" src="figs/scatter_baseline_llama3.2.jpg" alt="Reward versus cost for Safe RLHF responses, Llama-3.2-3B." width="1100" height="817" loading="lazy"><div class="cap">Safe RLHF</div></div>
+        <div class="plate ours"><img data-kind="ours" src="figs/scatter_ours_llama3.2.jpg" alt="Reward versus cost for HC-RLHF responses, Llama-3.2-3B." width="1100" height="819" loading="lazy"><div class="cap">HC-RLHF</div></div>
+      </div>
+      <figcaption>Reward against cost on the test set. HC-RLHF shifts the cloud left, away from the threshold, and leaves far fewer responses on the harmful side than Safe RLHF.</figcaption>
+    </figure>
+  </section>
+
+  <section id="winrate">
+    <div class="col">
+      <p class="eyebrow">Result 2 · Helpfulness</p>
+      <h2>Safer, and more helpful at the same time</h2>
+      <p>For each test prompt we compare the HC-RLHF and Safe RLHF responses, bucket the pair by whether each response is safe, and count how often HC-RLHF earns the higher reward.</p>
+    </div>
+
+    <div class="wr" id="fig-winrate">
+      <div>
+        <div class="fig-head" style="margin-bottom:1rem">
+          <div class="seg" role="group" aria-label="Model">
+            <button type="button" aria-pressed="true" data-model="llama">Llama-3.2-3B</button>
+            <button type="button" aria-pressed="false" data-model="qwen">Qwen2.5-3B</button>
+          </div>
+        </div>
+        <div class="matrix" role="table" aria-label="HC-RLHF reward win rate against Safe RLHF, by safety of each response">
+          <div class="corner" role="cell">Safe RLHF ↓ &nbsp; HC-RLHF →</div>
+          <div class="h" role="columnheader">HC-RLHF safe</div>
+          <div class="h" role="columnheader">HC-RLHF unsafe</div>
+          <div class="h rowh" role="rowheader">Safe RLHF<br>safe</div>
+          <div class="cell" role="cell"><span class="fill" data-i="0"></span><span class="pct" data-i="0"></span><span class="n" data-i="0"></span></div>
+          <div class="cell" role="cell"><span class="fill" data-i="1"></span><span class="pct" data-i="1"></span><span class="n" data-i="1"></span></div>
+          <div class="h rowh" role="rowheader">Safe RLHF<br>unsafe</div>
+          <div class="cell" role="cell"><span class="fill" data-i="2"></span><span class="pct" data-i="2"></span><span class="n" data-i="2"></span></div>
+          <div class="cell" role="cell"><span class="fill" data-i="3"></span><span class="pct" data-i="3"></span><span class="n" data-i="3"></span></div>
+        </div>
+        <p style="font-size:0.88rem;color:var(--ink-3);margin-top:0.8rem">Cells show the HC-RLHF reward win rate and, in parentheses, the number of prompt pairs in that bucket.</p>
+      </div>
+      <aside>
+        <p><strong style="color:var(--ink)">HC-RLHF wins in every bucket.</strong> Most pairs fall in the top-left cell, where both responses are safe. There HC-RLHF is more helpful 70% of the time on Llama-3.2-3B and 92% on Qwen2.5-3B.</p>
+        <p>The extra helpfulness is not coming from riskier answers. Among responses where HC-RLHF has the higher reward, almost all are safe:</p>
+        <table class="mini">
+          <thead><tr><th>Model</th><th>HC wins</th><th>HC loses</th></tr></thead>
+          <tbody>
+            <tr><td>Qwen2.5-3B</td><td>0.98</td><td>0.97</td></tr>
+            <tr><td>Qwen2-1.5B</td><td>0.99</td><td>0.98</td></tr>
+            <tr><td>Llama-3.2-3B</td><td>0.99</td><td>0.99</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:0.85rem;color:var(--ink-3);margin-top:0.6rem">Fraction of HC-RLHF responses that are safe, split by whether it had the higher or lower reward.</p>
+      </aside>
+    </div>
+  </section>
+
+  <section id="gpt">
+    <div class="col">
+      <p class="eyebrow">Result 3 · GPT-4 as judge</p>
+      <h2>An independent judge prefers HC-RLHF too</h2>
+      <p>To check that the gains are not an artifact of our own reward and cost models, GPT-4 compared responses pairwise for Llama-3.2-3B. "Overall" uses the categorized red-teaming prompts from the Safe RLHF repository. Helpfulness and harmlessness use 100 unseen test prompts.</p>
+    </div>
+
+    <div class="bars">
+      <div class="bar-legend"><span><i style="background:var(--ok)"></i>Win</span><span><i style="background:var(--tie)"></i>Tie</span><span><i style="background:var(--cost)"></i>Lose</span></div>
+      <div class="group">
+        <h3>HC-RLHF vs. Safe RLHF</h3>
+        <div class="bar-row"><span class="lab">Overall</span><div class="bar" role="img" aria-label="Win 27.7%, tie 55.4%, lose 16.9%"><span class="win" style="flex:27.71">27.7%</span><span class="tie" style="flex:55.42">55.4%</span><span class="lose" style="flex:16.87">16.9%</span></div></div>
+        <div class="bar-row"><span class="lab">Helpfulness</span><div class="bar" role="img" aria-label="Win 55%, tie 15%, lose 30%"><span class="win" style="flex:55">55%</span><span class="tie" style="flex:15">15%</span><span class="lose" style="flex:30">30%</span></div></div>
+        <div class="bar-row"><span class="lab">Harmlessness</span><div class="bar" role="img" aria-label="Win 46%, tie 25%, lose 29%"><span class="win" style="flex:46">46%</span><span class="tie" style="flex:25">25%</span><span class="lose" style="flex:29">29%</span></div></div>
+      </div>
+      <div class="group">
+        <h3>HC-RLHF vs. SFT</h3>
+        <div class="bar-row"><span class="lab">Overall</span><div class="bar" role="img" aria-label="Win 72.3%, tie 20.5%, lose 7.2%"><span class="win" style="flex:72.29">72.3%</span><span class="tie" style="flex:20.48">20.5%</span><span class="lose" style="flex:7.23">7.2%</span></div></div>
+        <div class="bar-row"><span class="lab">Helpfulness</span><div class="bar" role="img" aria-label="Win 87%, tie 2%, lose 11%"><span class="win" style="flex:87">87%</span><span class="tie" style="flex:2"></span><span class="lose" style="flex:11">11%</span></div></div>
+        <div class="bar-row"><span class="lab">Harmlessness</span><div class="bar" role="img" aria-label="Win 85%, tie 8%, lose 7%"><span class="win" style="flex:85">85%</span><span class="tie" style="flex:8">8%</span><span class="lose" style="flex:7">7%</span></div></div>
+      </div>
+      <p style="font-size:0.88rem;color:var(--ink-3);margin:0">For reference, Safe RLHF beats SFT 62.7% overall, 76% on helpfulness and 77% on harmlessness, below HC-RLHF on all three.</p>
+    </div>
+
+    <figure class="fig" style="max-width:46rem">
+      <div class="plate"><img src="figs/gpt_categories.png" alt="Horizontal stacked bars of HC-RLHF lose, tie and win rates against Safe RLHF for eight harm categories: Immoral, Insult, Physical Harm, Emotional Harm, Privacy, Crime, Pornographic, Social Bias." width="1519" height="1180" loading="lazy"></div>
+      <figcaption>Win, tie and lose rates against Safe RLHF across the eight harm categories of the red-teaming prompts. HC-RLHF wins at least as often as it loses in every category.</figcaption>
+    </figure>
+  </section>
+
+  <section id="guarantee">
+    <div class="col">
+      <p class="eyebrow">Result 4 · The guarantee in practice</p>
+      <h2>No unsafe model was ever returned</h2>
+      <p>To test the guarantee empirically, we repeatedly ran HC-RLHF on Qwen2-1.5B (the smallest model, so many trials were affordable) and checked each returned model against a large held-out dataset.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="lab">Allowed failure rate δ</div><div class="val k">0.10</div><p>At most 10% of runs may return an unsafe model, at τ = 0.</p></div>
+      <div class="stat"><div class="lab">Trials</div><div class="val">30</div><p>Bootstrap-resampled training sets of 1,000 prompts each.</p></div>
+      <div class="stat"><div class="lab">Observed failure rate</div><div class="val" style="color:var(--ok)">0 / 30</div><p>Every candidate passed the safety test, and every returned model was safe.</p></div>
+    </div>
+
+    <div class="tau" role="group" aria-labelledby="tau-title">
+      <div>
+        <h3 id="tau-title" style="margin:0 0 0.3rem">Tightening the threshold</h3>
+        <p style="margin:0;color:var(--ink-2);font-size:0.95rem">Lower τ means a stricter harm budget. Both methods trained on 72,000 prompts with 4,000 held out, Llama-3.2-3B, one trial per threshold.</p>
+      </div>
+      <div class="tau-grid" role="table">
+        <div class="h" role="columnheader" style="text-align:left">τ</div>
+        <div class="h" role="columnheader">0</div><div class="h" role="columnheader">−4</div><div class="h" role="columnheader">−7</div><div class="h" role="columnheader">−9</div><div class="h" role="columnheader">−12</div>
+        <div class="rl" role="rowheader">Safe RLHF</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip unsafe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Unsafe</div>
+        <div class="chip unsafe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Unsafe</div>
+        <div class="rl" role="rowheader">HC-RLHF</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+        <div class="chip safe" role="cell"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Safe</div>
+      </div>
+      <p class="src">A single trial per threshold cannot estimate Safe RLHF's failure rate. The point is that Safe RLHF has no guarantee, so there is no way to tell in advance which thresholds or dataset sizes it will handle. HC-RLHF's guarantee holds regardless.</p>
+    </div>
+
+    <aside class="scope">
+      <h3>What the guarantee assumes</h3>
+      <p><strong>Harm is measured by the learned cost model.</strong> The guarantee bounds expected cost under <span class="m c">C<sub>ψ</sub></span>. It is only as meaningful as the cost model's judgments of harm.</p>
+      <p><strong>Normality of the sample mean.</strong> The Student's t bound needs the mean cost to be approximately normal, which the central limit theorem supports for large safety sets. The paper also gives a distribution-free version using Hoeffding's inequality, which only requires bounded costs.</p>
+      <p><strong>Deployment prompts look like training prompts.</strong> The guarantee assumes a stationary prompt distribution. Distribution shift, such as new usage patterns or adversarial rephrasing, can weaken it and is left to future work.</p>
+    </aside>
+  </section>
+
+  <section id="cite">
+    <div class="col">
+      <p class="eyebrow">Citation</p>
+      <h2>BibTeX</h2>
+    </div>
+    <div class="bib">
+      <button type="button" id="copy-bib">Copy</button>
+<pre id="bibtex">@article{chittepu2025reinforcement,
+  title   = {Reinforcement Learning from Human Feedback with High-Confidence Safety Guarantees},
+  author  = {Chittepu, Yaswanth and Metevier, Blossom and Schwarzer, Will and Hoag, Austin and Niekum, Scott and Thomas, Philip S.},
+  journal = {Reinforcement Learning Journal},
+  volume  = {6},
+  pages   = {713--736},
+  year    = {2025}
+}</pre>
+    </div>
+  </section>
+
+  <footer>
+    <p>The arXiv version of this paper is titled "Reinforcement Learning from Human Feedback with High-Confidence Safety Constraints."</p>
+    <p>This work was done at the University of Massachusetts Amherst, in the SCALAR Lab and the Autonomous Learning Lab.</p>
+    <p>Correspondence: ychittepu@umass.edu · <a href="../">Yaswanth Chittepu</a></p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+
+  // scatter toggle
+  var scBtns = document.querySelectorAll("#fig-scatter .seg button");
+  var scImgs = document.querySelectorAll("#fig-scatter img");
+  var LABEL = { sft: "SFT", baseline: "Safe RLHF", ours: "HC-RLHF" };
+  scBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      scBtns.forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      scImgs.forEach(function (img) {
+        var k = img.dataset.kind;
+        img.src = "figs/scatter_" + k + "_" + b.dataset.model + ".jpg";
+        img.alt = "Reward versus cost for " + LABEL[k] + " responses, " + b.dataset.name + ".";
+      });
+    });
+  });
+
+  // win-rate matrix (values from the paper's win-rate figures)
+  var WR = {
+    llama: [[70.21, 6922], [60.0, 35], [98.49, 463], [77.33, 75]],
+    qwen:  [[92.2, 6799], [85.48, 62], [98.59, 567], [86.57, 67]]
+  };
+  function renderWR(model) {
+    WR[model].forEach(function (d, i) {
+      document.querySelector('.pct[data-i="' + i + '"]').textContent = d[0].toFixed(1) + "%";
+      document.querySelector('.n[data-i="' + i + '"]').textContent = "(" + d[1].toLocaleString("en-US") + ")";
+      document.querySelector('.fill[data-i="' + i + '"]').style.height = d[0] + "%";
+    });
+  }
+  var wrBtns = document.querySelectorAll("#fig-winrate .seg button");
+  wrBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      wrBtns.forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      renderWR(b.dataset.model);
+    });
+  });
+  renderWR("llama");
+
+  // BibTeX copy
+  el("copy-bib").addEventListener("click", function () {
+    var btn = this, text = el("bibtex").textContent;
+    function done(ok) { btn.textContent = ok ? "Copied" : "Select and copy"; setTimeout(function () { btn.textContent = "Copy"; }, 1800); }
+    function selectBib() {
+      var r = document.createRange(); r.selectNodeContents(el("bibtex"));
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    try {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { selectBib(); done(false); });
+    } catch (e) { selectBib(); done(false); }
+  });
+})();
+</script>
+</body>
+</html>

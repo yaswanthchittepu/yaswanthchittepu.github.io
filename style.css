@@ -118,3 +118,4 @@ footer { margin-top: 64px; color: var(--muted); font-size: 0.82rem; }
   .news li { grid-template-columns: 1fr; gap: 0; padding: 7px 0; }
   .pub { grid-template-columns: 1fr; gap: 2px; }
 }
+.authors sup { font-size: 0.7em; margin-left: 1px; }
