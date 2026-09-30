@@ -1,0 +1,143 @@
+% One-page industry resume — Yaswanth Chittepu
+% Build:  cd cv && latexmk -pdf YC-resume.tex
+% Phone comes from private.tex (git-ignored). Content is a condensed version of cv.tex.
+
+\documentclass[10pt]{article}
+
+% ATS/copy-paste friendliness: real space glyphs and Unicode mappings in the PDF text layer
+\pdfinterwordspaceon
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+\usepackage[letterpaper, margin=0.5in, top=0.45in, bottom=0.45in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[default,light,semibold]{sourcesanspro}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{tabularx}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{8A2C1C}
+\definecolor{muted}{HTML}{5E5D57}
+\definecolor{rulec}{HTML}{B9B5AB}
+\hypersetup{colorlinks=true, urlcolor=accent, linkcolor=accent,
+  pdftitle={Yaswanth Chittepu - Resume}, pdfauthor={Yaswanth Chittepu}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\pagestyle{empty}
+
+\titleformat{\section}[hang]{\fontsize{12.5}{15}\selectfont\fontseries{sb}\selectfont\color{accent}}{}{0pt}{\sectionwithrule}
+\newcommand{\sectionwithrule}[1]{#1\ {\color{rulec}\leaders\hrule height 3.2pt depth -2.7pt\hfill}}
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+
+% \job{Organization | Role}{Location}{Dates}
+\newcommand{\job}[3]{\needspace{3\baselineskip}{\fontseries{sb}\selectfont #1}\hfill{\small\itshape\color{muted}#2 \textperiodcentered\ #3}\par}
+\newcommand{\hl}[1]{{\color{accent}#1}}
+
+\setlist[itemize]{leftmargin=1.05em, itemsep=0pt, topsep=1pt, parsep=0pt, label={\small\textbullet}}
+
+\IfFileExists{private.tex}{\input{private}}{}
+
+\begin{document}
+
+% ================= HEADER =================
+\begin{center}
+  {\fontsize{24}{27}\selectfont\fontseries{l}\selectfont Yaswanth Chittepu}\\[1pt]
+  {\small
+  \ifdefined\cvphone\cvphone\ \ \textbar\ \ \fi
+  \href{mailto:ychittepu@umass.edu}{ychittepu@umass.edu}\ \ \textbar\ \
+  \href{https://yaswanthchittepu.github.io}{Website}\ \ \textbar\ \
+  \href{https://github.com/yaswanthchittepu}{GitHub}\ \ \textbar\ \
+  \href{https://www.linkedin.com/in/yaswanth-reddy-53585160/}{LinkedIn}\ \ \textbar\ \
+  \href{https://scholar.google.com/citations?user=sGEz950AAAAJ}{Google Scholar}}
+\end{center}
+\vspace{-6pt}
+
+% ================= SUMMARY =================
+\section{SUMMARY}
+PhD researcher at UMass Amherst designing \textbf{safe and efficient reinforcement learning algorithms}, with a focus on
+\textbf{RLHF, safe alignment of large language models (LLMs), and LLM agents}. Papers at \textbf{NeurIPS, COLM, and RLC}; two
+\textbf{Adobe Research} internships on LLM agents; three years of prior industry experience in data science and software engineering.
+
+% ================= EDUCATION =================
+\section{EDUCATION}
+\job{Ph.D., Computer Science \textbar\ University of Massachusetts Amherst \textbar\ GPA 3.97/4.0}{Amherst, MA}{Expected 2027}
+\job{M.S., Computer Science \textbar\ University of Massachusetts Amherst \textbar\ GPA 3.97/4.0}{Amherst, MA}{2021}
+\job{B.Tech., Mechanical Engineering \textbar\ Indian Institute of Technology Kharagpur}{Kharagpur, India}{2016}
+
+% ================= EXPERIENCE =================
+\section{EXPERIENCE}
+\job{Adobe Research \textbar\ Research Intern}{San Jose, CA}{May 2026 -- Aug 2026}
+\begin{itemize}
+  \item Learned \textbf{compact state abstractions for LLM agents} as deterministic recursive programs, discovered with an
+        \textbf{LLM-guided genetic algorithm}; the programs are inspectable and add no model calls at deployment.
+  \item Cut mean policy input by \hl{up to 71\% (ALFWorld) and 57\% (ScienceWorld)} while preserving task success, beating
+        full-history agents on \hl{4 of 10} task families.
+\end{itemize}
+
+\job{Adobe Research \textbar\ Research Intern}{San Jose, CA}{May 2025 -- Aug 2025}
+\begin{itemize}
+  \item Built \textbf{ML-Tool-Bench}, a benchmark for tool-augmented ML agents with \hl{61 tools and 15 Kaggle tasks}.
+  \item Designed planning methods with \textbf{shaped rewards} and \textbf{task decomposition}, improving over ReAct by
+        \hl{16.5 leaderboard percentile points}; added in-memory object management for reliable agent workflows.
+\end{itemize}
+
+\job{SCALAR Lab, UMass Amherst \textbar\ Graduate Researcher (advisor: Scott Niekum)}{Amherst, MA}{2022 -- Present}
+\begin{itemize}
+  \item \textbf{HC-RLHF (RLC 2025):} built the first RLHF method with a \textbf{provable safety guarantee}, returning an unsafe model with
+        probability \hl{at most $\delta$}; trained Qwen and Llama models (1.5B--3B) with a variance-aware RLOO policy gradient,
+        improving harmlessness and helpfulness over Safe RLHF, with \hl{0 of 30} trials returning an unsafe model.
+  \item \textbf{LARA (COLM 2026):} made any decoder safety-constrained at \textbf{inference time with no weight updates} by calibrating one
+        Lagrange multiplier in \hl{about two minutes}; Best-of-$N$ with LARA approaches finetuned baselines.
+  \item \textbf{Scaling laws (NeurIPS 2024):} showed that DPO, IPO, and SLiC overoptimize like classical RLHF across 1B--6.9B models,
+        overfitting within a single epoch and drifting toward out-of-distribution responses.
+  \item Developed adaptive-margin DPO from preference-over-preference data, and risk-sensitive alignment via stochastic dominance.
+\end{itemize}
+
+\job{athenahealth \textbar\ Member of Technical Staff}{Remote}{Jul 2021 -- Mar 2022}
+\begin{itemize}
+  \item Designed and built the \textbf{payments infrastructure} (bill generation, payment processing): database schemas and APIs.
+\end{itemize}
+\job{athenahealth \textbar\ Software Engineering Intern}{Remote}{Jun 2020 -- Aug 2020}
+\begin{itemize}
+  \item Built a mentor-matching web app (React, REST, SQL) deployed on \textbf{AWS} via \textbf{Jenkins CI/CD} and Docker.
+\end{itemize}
+
+\job{Robotics Research Center, IIIT Hyderabad \textbar\ Research Intern}{Hyderabad, India}{Jul 2018 -- Jul 2019}
+\begin{itemize}
+  \item Trained humanoid \textbf{dual-arm manipulation} policies with a modified DDPG (\hl{85\% success}) and imitation from human videos with PPO.
+\end{itemize}
+
+\job{dunnhumby \textbar\ Data Scientist}{Gurugram, India}{Jun 2016 -- Jun 2018}
+\begin{itemize}
+  \item Automated table extraction from scanned receipts with \textbf{conditional GANs}; segmented Tesco stores with Gaussian mixture
+        models, improving silhouette score by \hl{over 30\%} versus k-means.
+\end{itemize}
+
+% ================= PUBLICATIONS =================
+\section[Selected Publications]{SELECTED PUBLICATIONS {\normalfont\small\color{muted}\ (* equal contribution; full list on \href{https://scholar.google.com/citations?user=sGEz950AAAAJ}{Google Scholar})}}
+\begin{itemize}
+  \item \textit{Safe Inference-Time Alignment via Lagrangian Reward Augmentation.} \textbf{Chittepu}, Joshi, Chintala, Niekum. \textbf{COLM 2026}.
+  \item \textit{RLHF with High-Confidence Safety Guarantees.} \textbf{Chittepu*}, Metevier*, Schwarzer, Hoag, Niekum, Thomas. \textbf{RLC 2025}.
+  \item \textit{Scaling Laws for Reward Model Overoptimization in Direct Alignment Algorithms.} Rafailov*, \textbf{Chittepu*}, Park*, Sikchi*, Hejna*, et al. \textbf{NeurIPS 2024}; also MHFAIA @ ICML 2024 and RLBrew @ RLC 2024.
+  \item \textit{Safe RLHF Beyond Expectation: Stochastic Dominance for Universal Spectral Risk Control.} \textbf{Chittepu}, Joshi, Bhattacharjee, Niekum. Preprint 2026.
+  \item \textit{ML-Tool-Bench: Tool-Augmented Planning for ML Tasks.} \textbf{Chittepu}, Addanki, Mai, Rao, Kveton. Preprint 2025.
+\end{itemize}
+
+% ================= SKILLS =================
+\section{SKILLS}
+\begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+  \textbf{Methods}   & RLHF (PPO, GRPO, RLOO, DPO), supervised fine-tuning (SFT), distributed multi-GPU training, LLM agents and tool use \\
+  \textbf{ML stack}  & PyTorch, JAX, Hugging Face Transformers, TRL, DeepSpeed, Accelerate, vLLM, LangGraph, Gymnasium \\
+  \textbf{Languages} & Python, C, C++, JavaScript/TypeScript, SQL \\
+\end{tabularx}
+
+% ================= RECOGNITION =================
+\section{RECOGNITION \& SERVICE}
+\textbf{Gold Reviewer, ICML 2026.} Reviewer for NeurIPS, ICML, ICLR, COLM, TMLR; holistic reviewer for RLC 2026.
+
+\end{document}
