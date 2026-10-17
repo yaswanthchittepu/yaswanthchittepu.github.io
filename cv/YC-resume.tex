@@ -95,7 +95,8 @@ PhD researcher at UMass Amherst designing \textbf{safe and efficient reinforceme
         Lagrange multiplier in \hl{about two minutes}; Best-of-$N$ with LARA approaches finetuned baselines.
   \item \textbf{Scaling laws (NeurIPS 2024):} showed that DPO, IPO, and SLiC overoptimize like classical RLHF across 1B--6.9B models,
         overfitting within a single epoch and drifting toward out-of-distribution responses.
-  \item Developed adaptive-margin DPO from preference-over-preference data, and risk-sensitive alignment via stochastic dominance.
+  \item \textbf{TRIBE (under review):} post-training via a \textbf{convex program over importance ratios} plus weighted fine-tuning, for
+        on-policy, off-policy, and \textbf{fully offline} RL; competitive on GSM8K/MATH and best over rejection fine-tuning on UltraFeedback.
 \end{itemize}
 
 \job{athenahealth \textbar\ Member of Technical Staff}{Remote}{Jul 2021 -- Mar 2022}
@@ -121,23 +122,20 @@ PhD researcher at UMass Amherst designing \textbf{safe and efficient reinforceme
 % ================= PUBLICATIONS =================
 \section[Selected Publications]{SELECTED PUBLICATIONS {\normalfont\small\color{muted}\ (* equal contribution; full list on \href{https://scholar.google.com/citations?user=sGEz950AAAAJ}{Google Scholar})}}
 \begin{itemize}
+  \item \textit{TRIBE: Trust-Region Policy Improvement from Batch Experience.} \textbf{Chittepu*}, Deshmukh*, Gupta*, Thomas, Niekum. Under review.
   \item \textit{Safe Inference-Time Alignment via Lagrangian Reward Augmentation.} \textbf{Chittepu}, Joshi, Chintala, Niekum. \textbf{COLM 2026}.
   \item \textit{RLHF with High-Confidence Safety Guarantees.} \textbf{Chittepu*}, Metevier*, Schwarzer, Hoag, Niekum, Thomas. \textbf{RLC 2025}.
   \item \textit{Scaling Laws for Reward Model Overoptimization in Direct Alignment Algorithms.} Rafailov*, \textbf{Chittepu*}, Park*, Sikchi*, Hejna*, et al. \textbf{NeurIPS 2024}; also MHFAIA @ ICML 2024 and RLBrew @ RLC 2024.
   \item \textit{Safe RLHF Beyond Expectation: Stochastic Dominance for Universal Spectral Risk Control.} \textbf{Chittepu}, Joshi, Bhattacharjee, Niekum. Preprint 2026.
-  \item \textit{ML-Tool-Bench: Tool-Augmented Planning for ML Tasks.} \textbf{Chittepu}, Addanki, Mai, Rao, Kveton. Preprint 2025.
 \end{itemize}
 
 % ================= SKILLS =================
-\section{SKILLS}
+\section{SKILLS \& SERVICE}
 \begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X@{}}
   \textbf{Methods}   & RLHF (PPO, GRPO, RLOO, DPO), supervised fine-tuning (SFT), distributed multi-GPU training, LLM agents and tool use \\
   \textbf{ML stack}  & PyTorch, JAX, Hugging Face Transformers, TRL, DeepSpeed, Accelerate, vLLM, LangGraph, Gymnasium \\
   \textbf{Languages} & Python, C, C++, JavaScript/TypeScript, SQL \\
+  \textbf{Service}   & \textbf{Gold Reviewer, ICML 2026}; reviewer for NeurIPS, ICML, ICLR, COLM, TMLR; holistic reviewer, RLC 2026 \\
 \end{tabularx}
-
-% ================= RECOGNITION =================
-\section{RECOGNITION \& SERVICE}
-\textbf{Gold Reviewer, ICML 2026.} Reviewer for NeurIPS, ICML, ICLR, COLM, TMLR; holistic reviewer for RLC 2026.
 
 \end{document}

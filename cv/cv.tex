@@ -101,6 +101,10 @@ and LLM agents.
       {Preprint 2026}
       {\lnk{paper}{https://arxiv.org/abs/2610.09108} \lnk{code}{https://github.com/UMass-SCALAR-Lab/Convex-Concave-RL}}
   % TODO: add co-authors; add arXiv link once posted
+  \pub{TRIBE: Trust-Region Policy Improvement from Batch Experience}
+      {\textbf{Yaswanth Chittepu*}, Shripad V.\ Deshmukh*, Dhawal Gupta*, Philip S.\ Thomas, Scott Niekum}
+      {Under review, 2026}
+      {}
   \pub{Learning Compact State Abstractions for LLM Agents}
       {\me, et al.}
       {Under review, 2026}
@@ -166,6 +170,17 @@ and LLM agents.
 
 % ================= RESEARCH PROJECTS =================
 \section{Research Projects}
+\entry{TRIBE: Trust-Region Policy Improvement from Batch Experience}{SCALAR Lab, UMass Amherst}{Under review 2026}{}
+\begin{itemize}
+  \item Formulated LLM post-training from scalar rewards as policy improvement in \textbf{importance-ratio space}: Stage 1 solves a
+        \textbf{finite-dimensional convex program} over the sampled responses' likelihood ratios under an $f$-divergence trust region,
+        and Stage 2 fits the model to them with weighted behavior cloning; a $\chi^2$ trust region recovers GRPO-style advantages.
+  \item One method for \textbf{on-policy, off-policy, and fully offline} training, including data from unavailable or closed-source
+        generators; competitive with strong on-policy baselines on GSM8K and MATH, and the only evaluated method to improve over
+        rejection fine-tuning on UltraFeedback in both win rate and reward advantage.
+\end{itemize}
+\vspace{3pt}
+
 \entry{Safe Inference-Time Alignment (LARA)}{SCALAR Lab, UMass Amherst}{COLM 2026}{}
 \begin{itemize}
   \item Moved the Safe RLHF constraint \textbf{from training to decoding}: dualizing the constraint reduces the search over policies to a
