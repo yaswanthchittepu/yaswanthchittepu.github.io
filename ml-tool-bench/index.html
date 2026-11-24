@@ -377,7 +377,7 @@
   <div class="ladder">
     <div>
       <h3>Shaped rewards: ten checks, in order</h3>
-      <p class="muted" style="margin-bottom:0.8rem">A stage earns its reward once per trajectory, and only after every earlier stage has passed. The checks inspect the node's scratchpad and tool log, so no LLM judges progress.</p>
+      <p class="muted" style="margin-bottom:0.8rem">A stage earns its reward once per trajectory, and only after every earlier stage has passed. Each check is a fixed rule applied to the node's scratchpad and tool log, for example "the combined dataframe has no NaNs". Unlike in LATS, the reward never comes from asking an LLM to score the trajectory.</p>
       <ol id="ladder"></ol>
     </div>
     <div>
