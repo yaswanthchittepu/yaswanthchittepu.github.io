@@ -1,0 +1,26 @@
+task,method,usd_total_10_runs
+Spaceship Titanic,ReAct,1.66
+Spaceship Titanic,LATS,22.29
+Spaceship Titanic,MCTS-Outcome,3.22
+Spaceship Titanic,MCTS-Shaped,8.44
+Spaceship Titanic,Hierarchical MCTS,3.93
+Poisonous Mushrooms,ReAct,0.86
+Poisonous Mushrooms,LATS,13.64
+Poisonous Mushrooms,MCTS-Outcome,3.12
+Poisonous Mushrooms,MCTS-Shaped,2.86
+Poisonous Mushrooms,Hierarchical MCTS,1.89
+Bank Churn,ReAct,1.21
+Bank Churn,LATS,9.98
+Bank Churn,MCTS-Outcome,1.44
+Bank Churn,MCTS-Shaped,1.79
+Bank Churn,Hierarchical MCTS,5.65
+Santander Transaction,ReAct,1.34
+Santander Transaction,LATS,11.28
+Santander Transaction,MCTS-Outcome,2.36
+Santander Transaction,MCTS-Shaped,1.43
+Santander Transaction,Hierarchical MCTS,5.38
+NYC Taxi Fare,ReAct,2.02
+NYC Taxi Fare,LATS,17.83
+NYC Taxi Fare,MCTS-Outcome,2.72
+NYC Taxi Fare,MCTS-Shaped,4.07
+NYC Taxi Fare,Hierarchical MCTS,5.56

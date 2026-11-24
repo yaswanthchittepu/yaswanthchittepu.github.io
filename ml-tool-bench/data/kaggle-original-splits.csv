@@ -1,0 +1,37 @@
+task,method,consistency,median_public_lb_percentile
+Spaceship Titanic,ReAct,0.3,0
+Spaceship Titanic,LATS,0,0
+Spaceship Titanic,MCTS-Outcome,0.6,39.77
+Spaceship Titanic,MCTS-Shaped,0.6,41.69
+Spaceship Titanic,Hierarchical MCTS,0.4,0
+Spaceship Titanic,ReAct-Code,1,48.08
+Song BPM,ReAct,0.2,0
+Song BPM,LATS,0.3,0
+Song BPM,MCTS-Outcome,0,0
+Song BPM,MCTS-Shaped,0.8,5.03
+Song BPM,Hierarchical MCTS,0.7,0.19
+Song BPM,ReAct-Code,1,6.75
+Calorie Expenditure,ReAct,0.4,0
+Calorie Expenditure,LATS,0.3,0
+Calorie Expenditure,MCTS-Outcome,0.2,0
+Calorie Expenditure,MCTS-Shaped,0.3,0
+Calorie Expenditure,Hierarchical MCTS,0.6,16.81
+Calorie Expenditure,ReAct-Code,0.7,24.29
+California Housing,ReAct,0.6,5.51
+California Housing,LATS,0.4,0
+California Housing,MCTS-Outcome,0.1,0
+California Housing,MCTS-Shaped,0.5,8.99
+California Housing,Hierarchical MCTS,0.8,24.78
+California Housing,ReAct-Code,0.8,29.93
+Bank Deposit,ReAct,0.4,0
+Bank Deposit,LATS,0.5,13.47
+Bank Deposit,MCTS-Outcome,0,0
+Bank Deposit,MCTS-Shaped,1,27.65
+Bank Deposit,Hierarchical MCTS,0.6,27.29
+Bank Deposit,ReAct-Code,0.8,37.48
+Bank Churn,ReAct,0.2,0
+Bank Churn,LATS,0.5,14.91
+Bank Churn,MCTS-Outcome,0.1,0
+Bank Churn,MCTS-Shaped,1,29.87
+Bank Churn,Hierarchical MCTS,0.8,32.47
+Bank Churn,ReAct-Code,1,35.09

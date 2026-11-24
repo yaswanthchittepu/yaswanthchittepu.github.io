@@ -1,0 +1,16 @@
+task_id,name,kaggle_slug,type,metric,target
+spaceship_titanic,Spaceship Titanic,spaceship-titanic,binary,accuracy,Transported
+santander_value_prediction_challenge,Santander Value Prediction Challenge,santander-value-prediction-challenge,regression,rmsle,target
+nyc_taxi_fare_prediction,New York City Taxi Fare Prediction,new-york-city-taxi-fare-prediction,regression,rmse,fare_amount
+nyc_taxi_trip_duration,New York City Taxi Trip Duration,nyc-taxi-trip-duration,regression,rmsle,trip_duration
+bpm_prediction,Predicting the Beats-per-Minute of Songs,playground-series-s5e9,regression,rmse,BeatsPerMinute
+calorie_expenditure_prediction,Predict Calorie Expenditure,playground-series-s5e5,regression,rmsle,Calories
+california_housing_regression,Regression with a Tabular California Housing Dataset,playground-series-s3e1,regression,rmse,MedHouseVal
+used_car_prices_regression,Regression of Used Car Prices,playground-series-s4e9,regression,rmse,price
+porto_seguro_safe_driver_prediction,Porto Seguro's Safe Driver Prediction,porto-seguro-safe-driver-prediction,binary,normalized_gini,target
+costa_rican_household_poverty_level_prediction,Costa Rican Household Poverty Level Prediction,costa-rican-household-poverty-prediction,multiclass,macro_f1,Target
+forest_cover_type_prediction,Forest Cover Type (Kernels Only),forest-cover-type-kernels-only,multiclass,accuracy,Cover_Type
+santander_customer_transaction_prediction,Santander Customer Transaction Prediction,santander-customer-transaction-prediction,binary,auc,target
+poisonous_mushroom_prediction,Binary Prediction of Poisonous Mushrooms,playground-series-s4e8,binary,mcc,class
+bank_deposit_classification,Binary Classification with a Bank Dataset,playground-series-s5e8,binary,auc,y
+bank_churn_classification,Binary Classification with a Bank Churn Dataset,playground-series-s4e1,binary,auc,Exited

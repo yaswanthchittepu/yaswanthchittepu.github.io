@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ML-Tool-Bench</title>
+<meta name="description" content="ML-Tool-Bench: a benchmark for long-horizon, tool-augmented planning on ML tasks. Agents solve 15 Kaggle challenges end to end with 61 tools and a named-object scratchpad. Shaped rewards and hierarchical search with tool masking beat ReAct by 16.5 leaderboard percentile points with GPT-4o.">
+<meta property="og:title" content="ML-Tool-Bench: Tool-Augmented Planning for ML Tasks">
+<meta property="og:description" content="Agents solve 15 Kaggle challenges end to end by chaining dozens of calls to 61 ML tools. Hierarchical MCTS with tool masking beats ReAct by 16.5 leaderboard percentile points with GPT-4o.">
+<meta property="og:image" content="https://yaswanthchittepu.github.io/ml-tool-bench/media/hierarchical-mcts.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+<style>
+  :root {
+    --ground: #F6F7FA; --surface: #FFFFFF; --ink: #141827; --ink-2: #4A5068; --ink-3: #6E7489; --rule: #DDE1EA; --code-bg: #EEF0F5;
+    --ours: #1D5FB4; --ours-wash: rgba(29, 95, 180, 0.10);
+    --base: #8A90A3; --base-wash: rgba(138, 144, 163, 0.16);
+    --code: #B57A00; --code-wash: rgba(181, 122, 0, 0.12);
+    --ok: #1F7A4D; --ok-wash: rgba(31, 122, 77, 0.11);
+    --bad: #B8324A; --bad-wash: rgba(184, 50, 74, 0.10);
+    --k-set: #1F7A4D; --k-get: #6E7489; --k-getset: #1D5FB4; --k-over: #B57A00;
+    --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --measure: 42rem; --wide: 66rem;
+    --heat-0: #F1F3F8; --heat-1: #1D5FB4; --heat-ink-hi: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3; --rule: #2A3042; --code-bg: #1C2130;
+      --ours: #7AA8F2; --ours-wash: rgba(122, 168, 242, 0.14); --base: #7C8399; --base-wash: rgba(124, 131, 153, 0.18);
+      --code: #E7B53C; --code-wash: rgba(231, 181, 60, 0.14); --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12); --bad: #F0808F; --bad-wash: rgba(240, 128, 143, 0.12);
+      --k-set: #5CC593; --k-get: #868DA3; --k-getset: #7AA8F2; --k-over: #E7B53C;
+      --heat-0: #1C2130; --heat-1: #7AA8F2; --heat-ink-hi: #10131C;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3; --rule: #2A3042; --code-bg: #1C2130;
+    --ours: #7AA8F2; --ours-wash: rgba(122, 168, 242, 0.14); --base: #7C8399; --base-wash: rgba(124, 131, 153, 0.18);
+    --code: #E7B53C; --code-wash: rgba(231, 181, 60, 0.14); --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12); --bad: #F0808F; --bad-wash: rgba(240, 128, 143, 0.12);
+    --k-set: #5CC593; --k-get: #868DA3; --k-getset: #7AA8F2; --k-over: #E7B53C;
+    --heat-0: #1C2130; --heat-1: #7AA8F2; --heat-ink-hi: #10131C;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 400 1.0625rem/1.65 var(--sans); padding-inline: 16px; }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--ours); text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--ours); outline-offset: 3px; border-radius: 3px; }
+  .wrap { max-width: var(--wide); margin-inline: auto; }
+  .col { max-width: var(--measure); }
+  code { font: 400 0.88em var(--mono); background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+  /* hero */
+  header.hero { padding-block: 4.5rem 3rem; display: grid; gap: 1.5rem; }
+  .venue { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; font: 500 0.8rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .venue .badge { display: inline-flex; padding: 0.5rem 0.8rem; border-radius: 999px; background: var(--ours-wash); color: var(--ours); border: 1px solid currentColor; }
+  h1 { font: 500 clamp(2.1rem, 5vw, 3.35rem)/1.08 var(--serif); letter-spacing: -0.015em; margin: 0; max-width: 24ch; text-wrap: balance; }
+  h1 em { font-style: italic; }
+  .authors { display: grid; gap: 0.35rem; font-size: 1rem; }
+  .authors ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+  .authors li { white-space: nowrap; }
+  .authors sup, .affil sup { font: 500 0.7em var(--mono); color: var(--ink-3); margin-left: 1px; }
+  .affil { color: var(--ink-2); font-size: 0.92rem; }
+  .links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; font: 500 0.92rem/1 var(--sans); padding: 0.65rem 1rem; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); text-decoration: none; cursor: pointer; }
+  .btn:hover { border-color: var(--ink-3); text-decoration: none; }
+  .btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .btn svg { width: 1rem; height: 1rem; flex: none; }
+  .thesis { margin-top: 1.5rem; border-top: 1px solid var(--rule); padding-top: 2.25rem; }
+  .thesis p { margin: 0; font: 400 clamp(1.25rem, 2.6vw, 1.6rem)/1.4 var(--serif); color: var(--ink-2); max-width: 46rem; }
+  .thesis p strong { color: var(--ink); font-weight: 500; }
+  .heads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.5rem; }
+  .head { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1rem 1.1rem; }
+  .head .val { font: 500 1.9rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+  .head .val.ours { color: var(--ours); }
+  .head .lab { font-size: 0.88rem; color: var(--ink-2); margin-top: 0.35rem; line-height: 1.4; }
+
+  /* sections */
+  section { padding-block: 3.25rem; border-top: 1px solid var(--rule); }
+  .eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 0.9rem; }
+  h2 { font: 500 clamp(1.6rem, 3.4vw, 2.15rem)/1.15 var(--serif); letter-spacing: -0.01em; margin: 0 0 1.1rem; text-wrap: balance; max-width: 30ch; }
+  h3 { font: 600 1.02rem/1.35 var(--sans); margin: 0 0 0.4rem; }
+  h3 .sub { font-weight: 400; color: var(--ink-3); font-size: 0.88rem; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink-2); }
+  .muted { color: var(--ink-3); font-size: 0.88rem; }
+  details.abstract summary { cursor: pointer; font: 500 0.92rem var(--sans); color: var(--ink-2); list-style: none; display: inline-flex; gap: 0.4rem; }
+  details.abstract summary::-webkit-details-marker { display: none; }
+  details.abstract summary::before { content: "+"; font-family: var(--mono); color: var(--ink-3); }
+  details.abstract[open] summary::before { content: "−"; }
+  details.abstract p { margin-top: 0.9rem; color: var(--ink-2); font-size: 0.98rem; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: clamp(1rem, 2.5vw, 1.5rem); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--surface); gap: 2px; }
+  .seg button { font: 500 0.86rem/1 var(--sans); color: var(--ink-2); background: transparent; border: 0; border-radius: 999px; padding: 0.55rem 0.9rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+  .fig-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .fig-head .segs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  figure { margin: 0; }
+  figure.gif { margin-top: 2rem; }
+  figure.gif img { border-radius: 14px; border: 1px solid var(--rule); width: 100%; }
+  figcaption { font-size: 0.9rem; color: var(--ink-3); margin-top: 0.7rem; max-width: 50rem; }
+
+  /* scratchpad player */
+  .player { margin-top: 2rem; }
+  .player .task { font: 500 0.92rem var(--mono); color: var(--ink-2); margin-bottom: 1rem; }
+  .player .task b { color: var(--ink); font-weight: 500; }
+  .lanes { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1rem; }
+  .lane { border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); display: grid; grid-template-rows: auto 1fr; min-height: 27rem; overflow: hidden; }
+  .lane-h { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; padding: 0.8rem 1rem; border-bottom: 1px solid var(--rule); background: var(--surface); }
+  .lane-h .t { font: 600 0.92rem var(--sans); }
+  .lane-h .eq { font-size: 0.82rem; color: var(--ink-3); }
+  .lane-body { padding: 0.8rem 1rem; overflow: auto; max-height: 24rem; font: 400 0.78rem/1.5 var(--mono); }
+  .call { padding: 0.45rem 0 0.45rem 0.65rem; border-left: 2px solid var(--rule); margin-bottom: 0.45rem; color: var(--ink-2); }
+  .call.cur { border-left-color: var(--ours); animation: rise 0.4s ease-out; }
+  .call .fn { color: var(--ink); font-weight: 500; }
+  .call .args { white-space: pre-wrap; word-break: break-word; }
+  .call .msg { color: var(--ink-3); margin-top: 0.2rem; }
+  .call .msg::before { content: "→ "; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .kind { display: inline-block; font: 500 0.66rem/1 var(--mono); letter-spacing: 0.04em; padding: 0.22rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; vertical-align: 1px; border: 1px solid currentColor; }
+  .kind.set { color: var(--k-set); } .kind.get { color: var(--k-get); } .kind.get_set { color: var(--k-getset); } .kind.override { color: var(--k-over); }
+  .pad { display: grid; gap: 0.4rem; }
+  .obj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; align-items: baseline; padding: 0.45rem 0.6rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); transition: background 1.2s, border-color 1.2s; }
+  .obj .key { color: var(--ink); font-weight: 500; }
+  .obj .ty { color: var(--ink-3); font-size: 0.72rem; text-align: right; }
+  .obj.new { background: var(--ok-wash); border-color: var(--k-set); }
+  .obj.over { background: var(--code-wash); border-color: var(--k-over); }
+  .obj.read { border-color: var(--ours); }
+  .padnote { margin-top: 0.8rem; font-size: 0.74rem; color: var(--ink-3); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+  .controls input[type=range] { flex: 1 1 12rem; accent-color: var(--ours); }
+  .controls .stepn { font: 500 0.85rem var(--mono); color: var(--ink-2); min-width: 7rem; }
+  .iconbtn { width: 2.4rem; height: 2.4rem; display: inline-grid; place-items: center; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; padding: 0; }
+  .iconbtn svg { width: 1rem; height: 1rem; }
+  .kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.25rem; }
+  .kinds div { font-size: 0.88rem; color: var(--ink-2); }
+  .kinds .kind { margin: 0 0 0.35rem; }
+
+  /* tools explorer */
+  .stagebar { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1.25rem 0 1rem; }
+  .stagebar button { font: 500 0.82rem/1 var(--sans); color: var(--ink-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 0.5rem 0.75rem; cursor: pointer; }
+  .stagebar button .n { font-family: var(--mono); color: var(--ink-3); margin-left: 0.3rem; }
+  .stagebar button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .stagebar button[aria-pressed="true"] .n { color: var(--ground); opacity: 0.75; }
+  .toolcount { font: 500 0.9rem var(--mono); color: var(--ink-2); margin-bottom: 1rem; }
+  .toolcount b { color: var(--ours); font-weight: 500; }
+  .groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .grp h3 { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 0.6rem; }
+  .grp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .grp li { font: 400 0.74rem/1 var(--mono); padding: 0.38rem 0.5rem; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); transition: opacity 0.25s, background 0.25s; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .grp li i { width: 0.45rem; height: 0.45rem; border-radius: 50%; display: inline-block; flex: none; }
+  .grp li.off { opacity: 0.28; }
+  .grp li.on { background: var(--ours-wash); border-color: var(--ours); }
+
+  /* approaches */
+  .methods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-top: 1.75rem; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); overflow: hidden; }
+  .methods > div { padding: 1.15rem 1rem; }
+  .methods > div + div { border-left: 1px solid var(--rule); }
+  .methods .tag { font: 500 0.68rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 0.6rem; }
+  .methods .ours .tag { color: var(--ours); }
+  .methods .ours { background: var(--ours-wash); }
+  .methods p { font-size: 0.88rem; color: var(--ink-2); margin: 0.3rem 0 0; }
+  .ladder { margin-top: 2rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  .ladder ol { list-style: none; margin: 0; padding: 0; counter-reset: st; display: grid; gap: 0.3rem; }
+  .ladder ol li { counter-increment: st; display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; padding: 0.45rem 0.7rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 0.9rem; transition: background 0.35s, border-color 0.35s; }
+  .ladder ol li::before { content: counter(st); font: 500 0.75rem var(--mono); color: var(--ink-3); }
+  .ladder ol li .r { font: 500 0.75rem var(--mono); color: var(--ink-3); }
+  .ladder ol li.hit { background: var(--ok-wash); border-color: var(--ok); }
+  .ladder ol li.hit .r { color: var(--ok); }
+  .ladder ol li.miss { background: var(--bad-wash); border-color: var(--bad); }
+  .ladder ol li.miss .r { color: var(--bad); }
+  .feedback { font: 400 0.82rem/1.5 var(--mono); background: var(--code-bg); border-radius: 10px; padding: 0.9rem 1rem; color: var(--ink-2); min-height: 6.5rem; }
+  .feedback b { color: var(--ink); font-weight: 500; }
+  .why { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.7rem; }
+  .why li { font-size: 0.95rem; color: var(--ink-2); padding-left: 1rem; border-left: 2px solid var(--rule); }
+  .why li b { color: var(--ink); font-weight: 600; }
+
+  /* charts */
+  .chart { position: relative; }
+  .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart .axis text { font: 400 11px var(--mono); fill: var(--ink-3); }
+  .chart .grid line { stroke: var(--rule); stroke-width: 1; }
+  .chart .base { stroke: var(--ink-3); stroke-width: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.85rem; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -1px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--ground); font: 400 0.8rem/1.45 var(--sans); padding: 0.5rem 0.65rem; border-radius: 8px; white-space: nowrap; opacity: 0; transform: translate(-50%, calc(-100% - 10px)); transition: opacity 0.12s; z-index: 5; }
+  .tip b { font-weight: 600; }
+  .tip .n { font-family: var(--mono); }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; margin-top: 1.25rem; }
+  .two > * { min-width: 0; }
+  .note { font-size: 0.93rem; color: var(--ink-2); margin: 1rem 0 0; max-width: 50rem; }
+
+  /* heatmap */
+  .heat { margin-top: 1.25rem; overflow-x: auto; }
+  .heat table { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: 34rem; }
+  .heat th { font: 500 0.68rem/1.25 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); padding: 0.3rem; text-align: center; vertical-align: bottom; }
+  .heat th.ours { color: var(--ours); }
+  .heat th:first-child { text-align: left; }
+  .heat td { font: 500 0.78rem/1 var(--mono); font-variant-numeric: tabular-nums; text-align: center; padding: 0.55rem 0.2rem; border-radius: 5px; position: relative; }
+  .heat td:first-child { font: 400 0.86rem/1.2 var(--sans); text-align: left; color: var(--ink); padding-left: 0; white-space: nowrap; }
+  .heat td:first-child .ty { font: 400 0.7rem var(--mono); color: var(--ink-3); margin-left: 0.35rem; }
+  .heat tr.med td { border-top: 1px solid var(--rule); }
+  .heat tr.med td:first-child { font-weight: 600; }
+  .scale { display: flex; align-items: center; gap: 0.6rem; font: 400 0.75rem var(--mono); color: var(--ink-3); margin-top: 0.75rem; }
+  .scale span.bar { width: 9rem; height: 0.6rem; border-radius: 999px; background: linear-gradient(90deg, var(--heat-0), var(--heat-1)); border: 1px solid var(--rule); }
+
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  table.data th, table.data td { padding: 0.45rem 0.45rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data th { font: 500 0.66rem/1.3 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); vertical-align: bottom; }
+  table.data td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  table.data td:first-child { font-family: var(--sans); color: var(--ink); }
+  table.data td.best { color: var(--ink); font-weight: 600; }
+  table.data .ours { background: var(--ours-wash); }
+  table.data tr.med td { font-weight: 600; color: var(--ink); }
+  .tablewrap { overflow-x: auto; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .stat { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1.2rem 1.3rem; }
+  .stat .lab { font: 500 0.72rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .vals { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin-top: 0.5rem; }
+  .stat .val { font: 500 1.9rem/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+  .stat .val small { display: block; font: 400 0.78rem var(--sans); color: var(--ink-3); }
+  .stat p { margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+
+  /* usage */
+  .codebox { position: relative; margin-top: 0.75rem; }
+  .codebox pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1rem 1.2rem; overflow-x: auto; font: 400 0.8rem/1.6 var(--mono); color: var(--ink); }
+  .codebox .copy, .bib button { position: absolute; top: 0.55rem; right: 0.55rem; font: 500 0.76rem/1 var(--sans); padding: 0.42rem 0.7rem; border-radius: 999px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); cursor: pointer; }
+  .tok-com { color: var(--ink-3); font-style: italic; }
+  .tok-kw { color: var(--ours); }
+  .tok-str { color: var(--ok); }
+  .usegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-top: 1.5rem; }
+  .usegrid > div { min-width: 0; }
+  .downloads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.5rem; }
+  .dl { display: grid; gap: 0.25rem; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); text-decoration: none; color: var(--ink); }
+  .dl:hover { border-color: var(--ink-3); text-decoration: none; }
+  .dl .f { font: 500 0.85rem var(--mono); color: var(--ours); }
+  .dl .d { font-size: 0.88rem; color: var(--ink-2); }
+  .scope { margin-top: 2rem; max-width: 46rem; border-left: 3px solid var(--code); padding: 0.2rem 0 0.2rem 1.1rem; }
+  .scope p { color: var(--ink-2); margin: 0 0 0.6rem; font-size: 0.97rem; }
+  .scope p:last-child { margin: 0; }
+  .bib { position: relative; margin-top: 1.25rem; }
+  .bib pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1.25rem 1.35rem; overflow-x: auto; font: 400 0.85rem/1.6 var(--mono); color: var(--ink); }
+  footer { border-top: 1px solid var(--rule); padding-block: 2rem 3rem; color: var(--ink-3); font-size: 0.88rem; display: grid; gap: 0.5rem; }
+  footer p { margin: 0; }
+
+  @media (max-width: 900px) {
+    .methods { grid-template-columns: minmax(0, 1fr); }
+    .methods > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+    .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ladder, .usegrid, .two { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 760px) {
+    header.hero { padding-block: 2.75rem 2rem; }
+    .heads, .kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lanes, .stat-row, .downloads, .groups { grid-template-columns: minmax(0, 1fr); }
+    .lane { min-height: 0; }
+    .lane-body { max-height: 16rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="venue"><span class="badge">arXiv · 2025</span><span>UMass Amherst · Adobe Research</span></div>
+  <h1>ML-Tool-Bench: Tool-Augmented Planning for <em>ML Tasks</em></h1>
+  <div class="authors">
+    <ul>
+      <li><a href="https://yaswanthchittepu.github.io/">Yaswanth Chittepu</a><sup>1</sup></li>
+      <li>Raghavendra Addanki<sup>2</sup></li>
+      <li>Tung Mai<sup>2</sup></li>
+      <li>Anup Rao<sup>2</sup></li>
+      <li>Branislav Kveton<sup>2</sup></li>
+    </ul>
+    <div class="affil"><sup>1</sup> University of Massachusetts Amherst &nbsp;·&nbsp; <sup>2</sup> Adobe Research</div>
+  </div>
+  <nav class="links" aria-label="Paper resources">
+    <a class="btn primary" href="https://arxiv.org/abs/2512.00672"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 1.75h5.5L12.5 4.75v9.5H4z"/><path d="M9.25 1.75v3.25h3.25"/></svg>arXiv</a>
+    <a class="btn" href="https://arxiv.org/pdf/2512.00672"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>PDF</a>
+    <a class="btn" href="https://github.com/yaswanthchittepu/ML-Tool-Bench"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg>Code</a>
+    <a class="btn" href="#use"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>Quickstart</a>
+    <a class="btn" href="#data"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6.5 3.5v9"/></svg>Results data</a>
+    <a class="btn" href="#cite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 2.75h10v10.5H3z"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>BibTeX</a>
+  </nav>
+  <div class="thesis">
+    <p><strong>Can an LLM agent solve a Kaggle challenge end to end without writing any code?</strong> In ML-Tool-Bench it has to chain dozens of tool calls (load, clean, engineer features, train, predict), keeping every intermediate dataframe and model in a named scratchpad. Most tool-use benchmarks test choosing the right tool and filling in its arguments over short sequences. A full ML pipeline needs twenty or more dependent calls.</p>
+  </div>
+  <div class="heads">
+    <div class="head"><div class="val">61</div><div class="lab">ML tools in 6 groups, built on pandas and scikit-learn</div></div>
+    <div class="head"><div class="val">15</div><div class="lab">Kaggle challenges: 7 regression, 6 binary, 2 multiclass</div></div>
+    <div class="head"><div class="val ours">+16.5</div><div class="lab">leaderboard percentile points over ReAct, GPT-4o (median over tasks)</div></div>
+    <div class="head"><div class="val">80</div><div class="lab">tool calls in one successful Hierarchical MCTS run</div></div>
+  </div>
+</header>
+
+<section id="idea">
+  <div class="col">
+    <p class="eyebrow">The benchmark</p>
+    <h2>Data never passes through the LLM</h2>
+    <p class="lede">A dataframe with 10,000 rows cannot be pasted into a tool argument. In ML-Tool-Bench every artifact lives in a <em>scratchpad</em>, a key–value store of named objects. The agent passes names; tools read their inputs from the scratchpad by name and write their outputs back under names the agent picks. A bad call can't corrupt the only copy of the data, and the agent can keep several versions around and reuse them later.</p>
+    <details class="abstract">
+      <summary>Read the abstract</summary>
+      <p>End-to-end machine learning requires coordinating long sequences of interdependent operations: data loading, preprocessing, feature engineering, model training, and prediction. While LLM agents have shown promise through direct code generation, such approaches are brittle and tightly couple reasoning with execution. Tool-augmented agents offer an alternative with modular building blocks that decouple planning from code, yet existing benchmarks evaluate only shallow trajectories (1-3 tool calls). Real ML workflows demand 20+ sequential invocations producing complex artifacts like dataframes and fitted models that must persist across the trajectory. We introduce ML-Tool-Bench, the first benchmark for long-horizon, tool-augmented planning on ML tasks, comprising 61 specialized tools and 15 Kaggle challenges. We show that ReAct and LATS fail to produce valid tool sequences for these complex pipelines. To address this, we propose shaped rewards with stage-wise feedback, hierarchical task decomposition with tool masking, and in-memory named object management for storing and retrieving intermediate results. With GPT-4o, our methods improve over ReAct by 16.52 percentile positions (median across challenges), demonstrating that structured guidance is critical for effective tool-augmented planning.</p>
+    </details>
+  </div>
+
+  <div class="player card" id="player">
+    <div class="task">Spaceship Titanic · binary classification · predict <b>Transported</b> · metric: accuracy</div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-h"><span class="t">Agent's tool calls</span><span class="eq">names in, short messages out</span></div>
+        <div class="lane-body" id="callBody" aria-live="polite"></div>
+      </div>
+      <div class="lane">
+        <div class="lane-h"><span class="t">Scratchpad</span><span class="eq" id="padCount">0 objects</span></div>
+        <div class="lane-body"><div class="pad" id="padBody"></div><div class="padnote" id="padNote"></div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="iconbtn" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg></button>
+      <button class="iconbtn" id="resetBtn" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5"/></svg></button>
+      <input type="range" id="stepRange" min="0" max="1" value="0" aria-label="Tool call">
+      <span class="stepn" id="stepLabel">call 0</span>
+    </div>
+    <div class="kinds">
+      <div><span class="kind set">set</span><br>Reads nothing and stores its result under the agent's <code>output</code> name.</div>
+      <div><span class="kind get">get</span><br>Reads named objects and returns text only, such as a summary or a score.</div>
+      <div><span class="kind get_set">get_set</span><br>Reads named objects and stores a new one.</div>
+      <div><span class="kind override">override</span><br>Reads one named object and replaces it in place.</div>
+    </div>
+    <p class="muted" style="margin:1rem 0 0">An illustrative trajectory, written in the benchmark's real call format and tool names. The shapes and messages are made up for the example. Tools that return several values (a train/test split, a tuned model with its parameters and score) store them under fixed names.</p>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="col">
+    <p class="eyebrow">The action space</p>
+    <h2>61 tools, and which ones each stage needs</h2>
+    <p>Each call is a tool <em>plus</em> its arguments, so the effective action space is far larger than 61. Modeling uses tree ensembles (random forest, XGBoost, LightGBM, CatBoost) and linear or logistic regression, each tuned with cross-validation. Pick a stage to see the subset of tools Hierarchical MCTS exposes there.</p>
+  </div>
+  <div class="stagebar" id="stageBar" role="group" aria-label="Pipeline stage"></div>
+  <div class="toolcount" id="toolCount"></div>
+  <div class="groups" id="toolGroups"></div>
+  <div class="legend" style="margin-top:1rem">
+    <span><i style="background:var(--k-set);border-radius:50%"></i>set</span>
+    <span><i style="background:var(--k-get);border-radius:50%"></i>get</span>
+    <span><i style="background:var(--k-getset);border-radius:50%"></i>get_set</span>
+    <span><i style="background:var(--k-over);border-radius:50%"></i>override</span>
+  </div>
+</section>
+
+<section id="approaches">
+  <div class="col">
+    <p class="eyebrow">Planning approaches</p>
+    <h2>Search needs a signal it can trust</h2>
+    <p>We compare five planners. Each tree search keeps a <em>path-local</em> scratchpad: a node stores only the objects its own tool call produced, and can read anything stored along its path from the root. Because full rollouts are too expensive, every search variant scores a node by its immediate reward, which makes it a best-first search with a UCT exploration bonus.</p>
+  </div>
+  <div class="methods">
+    <div><span class="tag">Baseline</span><h3>ReAct</h3><p>Think, call one tool, observe, repeat. One pass, no backtracking.</p></div>
+    <div><span class="tag">Baseline</span><h3>LATS</h3><p>Tree search where an evaluator LLM scores each partial trajectory.</p></div>
+    <div><span class="tag">Baseline</span><h3>MCTS-Outcome</h3><p>Tree search rewarded only for a trained model or a valid submission.</p></div>
+    <div class="ours"><span class="tag">Ours</span><h3>MCTS-Shaped</h3><p>Deterministic, verifiable rewards for each pipeline stage, plus textual feedback on failures.</p></div>
+    <div class="ours"><span class="tag">Ours</span><h3>Hierarchical MCTS</h3><p>Solves the stages as subtasks in order, each with only its own tools.</p></div>
+  </div>
+
+  <div class="ladder">
+    <div>
+      <h3>Shaped rewards: ten checks, in order</h3>
+      <p class="muted" style="margin-bottom:0.8rem">A stage earns its reward once per trajectory, and only after every earlier stage has passed. The checks inspect the node's scratchpad and tool log, so no LLM judges progress.</p>
+      <ol id="ladder"></ol>
+    </div>
+    <div>
+      <h3>What the agent hears back</h3>
+      <p class="muted" style="margin-bottom:0.8rem">When a check fails, the search returns a concrete explanation instead of a bare score. All MCTS variants get this feedback; failed tool calls also come back with the tool's docstring.</p>
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <ul class="why" style="margin-top:1.25rem">
+        <li><b>Why not let an LLM score the states?</b> LATS does, and its scores grow inconsistent as trajectories get long and pile up messages and artifacts. It is also the most expensive planner: 3.5× the cost of our methods.</li>
+        <li><b>Why mask tools?</b> At each stage only a few of the 61 tools are relevant. Showing just those cuts the branching factor, and removing the mask collapses Hierarchical MCTS (see below).</li>
+      </ul>
+    </div>
+  </div>
+
+  <figure class="gif">
+    <img src="media/hierarchical-mcts.gif" width="1200" height="675" alt="Animation of Hierarchical MCTS. Four subtask panels (load train data, clean, engineer features, train model), each showing how many of the 61 tools are available. Inside each panel a small search tree grows; failed calls are marked with a cross, solution nodes are filled green, and the solution nodes become the roots of the next subtask's tree." loading="lazy">
+    <figcaption>Hierarchical MCTS. Each subtask searches with its masked tool set and enumerates every solution node up to a depth limit, rather than committing to the first one. All of them seed the next subtask, which avoids locally good but globally poor choices. The highest-value solution at the final subtask is returned; if a subtask finds none, the search stops.</figcaption>
+  </figure>
+</section>
+
+<section id="results">
+  <div class="col">
+    <p class="eyebrow">Results</p>
+    <h2>Structure beats free-form planning</h2>
+    <p>Each planner runs 10 times on every challenge. <b>Consistency</b> is the fraction of runs that end in a valid submission. <b>Leaderboard percentile</b> is the share of the public Kaggle leaderboard that the run's score beats, computed on our held-out split; an invalid run counts as 0. We report the median over the 10 runs, then the median over the 15 challenges.</p>
+  </div>
+  <div class="card" style="margin-top:1.5rem">
+    <div class="fig-head">
+      <div class="segs">
+        <div class="seg" id="modelSeg" role="group" aria-label="Model"><button type="button" data-v="gpt-4o" aria-pressed="true">GPT-4o</button><button type="button" data-v="gpt-4.1-mini" aria-pressed="false">GPT-4.1-mini</button></div>
+      </div>
+      <div class="seg" id="viewSeg" role="group" aria-label="View"><button type="button" data-v="chart" aria-pressed="true">Chart</button><button type="button" data-v="table" aria-pressed="false">Table</button></div>
+    </div>
+    <div id="resChart">
+      <div class="two">
+        <div class="chart" id="pctChart"><h3>Median leaderboard percentile <span class="sub">(higher is better)</span></h3></div>
+        <div class="chart" id="consChart"><h3>Consistency <span class="sub">(fraction of valid runs)</span></h3></div>
+      </div>
+      <h3 style="margin-top:2rem">Per challenge <span class="sub">· median leaderboard percentile over 10 runs; hover for consistency</span></h3>
+      <div class="heat chart" id="heat"></div>
+      <div class="scale"><span>0</span><span class="bar"></span><span>100</span></div>
+    </div>
+    <div class="tablewrap" id="resTable" hidden></div>
+    <p class="note" id="resNote"></p>
+  </div>
+</section>
+
+<section id="checks">
+  <div class="col">
+    <p class="eyebrow">Ablations and checks</p>
+    <h2>What matters, what it costs, and how it compares with writing code</h2>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat">
+      <div class="lab">Tool masking · GPT-4.1-mini · 5 challenges</div>
+      <div class="vals">
+        <div class="val" style="color:var(--ours)">0.8 · 21.1<small>with masking (consistency · percentile)</small></div>
+        <div class="val" style="color:var(--ink-3)">0.3 · 0<small>all 61 tools at every subtask</small></div>
+      </div>
+      <p>Decomposition alone isn't enough. Without the mask, Hierarchical MCTS falls to the level of ReAct.</p>
+    </div>
+    <div class="stat">
+      <div class="lab">Real Kaggle leaderboard · GPT-4.1-mini · 6 challenges</div>
+      <div class="vals">
+        <div class="val" style="color:var(--ours)">20.8<small>Hierarchical MCTS, median percentile</small></div>
+        <div class="val" style="color:var(--ink-3)">0<small>ReAct and LATS</small></div>
+      </div>
+      <p>On the full Kaggle data, scored by real Kaggle submissions, the same pattern holds: MCTS-Shaped and Hierarchical MCTS lead. The benchmark's held-out split is a reasonable proxy.</p>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:1.5rem">
+    <div class="card">
+      <h3>Cost <span class="sub">· total $ for 10 runs on each of 5 challenges, GPT-4.1-mini</span></h3>
+      <div class="chart" id="costChart"></div>
+      <p class="note" style="font-size:0.88rem">LATS spends the most and gets the least: 0.2 consistency and a median percentile of 0 on these five challenges. ReAct is cheapest and nearly as poor.</p>
+    </div>
+    <div class="card">
+      <h3>Versus writing code <span class="sub">· real Kaggle leaderboard percentile, median over 6 challenges</span></h3>
+      <div class="chart" id="codeChart"></div>
+      <p class="note" style="font-size:0.88rem">ReAct-Code writes and runs Python, refining it from execution feedback for up to 10 rounds. It is the strongest method overall. The best tool planners get within about 12 points while restricted to a fixed toolset, which suggests the 61 tools cover most of what these tabular tasks need.</p>
+    </div>
+  </div>
+  <div class="legend" style="margin-top:1rem"><span><i style="background:var(--base)"></i>Baseline planner</span><span><i style="background:var(--ours)"></i>Ours</span><span><i style="background:var(--code)"></i>Code generation</span></div>
+</section>
+
+<section id="use">
+  <div class="col">
+    <p class="eyebrow">Use the benchmark</p>
+    <h2>Evaluate your own agent</h2>
+    <p>The <a href="https://github.com/yaswanthchittepu/ML-Tool-Bench">code</a> installs the 61 tools, the scratchpad environment, the grader and all six planners. Datasets are not redistributed: they download through the Kaggle API, and you must accept each competition's rules first. Public leaderboards ship with the repo as score-only snapshots, so computing percentiles needs no Kaggle access.</p>
+  </div>
+  <div class="usegrid">
+    <div>
+      <h3>1 · Install and prepare the data</h3>
+      <div class="codebox"><button type="button" class="copy">Copy</button><pre>git clone https://github.com/yaswanthchittepu/ML-Tool-Bench.git
+cd ML-Tool-Bench
+pip install -e ".[agents,prepare]"   <span class="tok-com"># Python >= 3.11</span>
+cp .env.example .env                 <span class="tok-com"># OPENAI_MODEL, OPENAI_API_KEY</span>
+mltoolbench prepare                  <span class="tok-com"># needs ~/.kaggle/kaggle.json</span></pre></div>
+      <h3 style="margin-top:1.25rem">2 · Run a baseline</h3>
+      <div class="codebox"><button type="button" class="copy">Copy</button><pre>mltoolbench run --config baselines/hierarchical_mcts.yaml \
+                --model gpt-4o --workers 8
+mltoolbench run --agent react --tasks spaceship_titanic --runs 3
+mltoolbench report runs/</pre></div>
+      <p class="muted" style="margin-top:0.6rem">Each run writes <code>submission.csv</code>, <code>trajectory.json</code> (every LLM step and tool call) and <code>result.json</code> (grade, tokens, cost, wall time). Any OpenAI-compatible endpoint works, including vLLM.</p>
+    </div>
+    <div>
+      <h3>3 · Plug in your agent</h3>
+      <div class="codebox"><button type="button" class="copy">Copy</button><pre><span class="tok-kw">from</span> mltoolbench.agents <span class="tok-kw">import</span> Agent, RunContext
+<span class="tok-kw">from</span> mltoolbench.env <span class="tok-kw">import</span> ToolSession
+
+<span class="tok-kw">class</span> MyAgent(Agent):
+    name = <span class="tok-str">"my_agent"</span>
+
+    <span class="tok-kw">def</span> run(self, ctx: RunContext):
+        session = ToolSession()          <span class="tok-com"># 61 tools + empty scratchpad</span>
+        tools = session.openai_tools()   <span class="tok-com"># function-calling schemas</span>
+        prompt = ctx.prompt()            <span class="tok-com"># task + where to save</span>
+        ...  <span class="tok-com"># your loop: text = session.call(name, args)</span>
+        <span class="tok-com"># the submission must end up at ctx.submission_path</span></pre></div>
+      <div class="codebox"><button type="button" class="copy">Copy</button><pre>mltoolbench run --agent my_pkg.my_module:MyAgent --model gpt-4o
+mltoolbench grade spaceship_titanic submission.csv</pre></div>
+      <p class="muted" style="margin-top:0.6rem"><code>ToolSession(stage="modeling")</code> gives a stage's masked tool set. LangGraph users can call <code>mltoolbench.env.langchain.langchain_tools(...)</code>.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1.75rem">
+    <h3>The 15 challenges</h3>
+    <p class="muted" style="margin-bottom:0.8rem">Each uses up to 10,000 rows sampled with seed 42, with 20% held out (stratified for classification) as the test set. Scores use each competition's official metric.</p>
+    <div class="tablewrap" id="taskTable"></div>
+  </div>
+</section>
+
+<section id="data">
+  <div class="col">
+    <p class="eyebrow">Use the results</p>
+    <h2>Every number on this page, as CSV</h2>
+    <p>Compare a new planner against ours without retyping tables from the PDF.</p>
+  </div>
+  <div class="downloads">
+    <a class="dl" href="data/benchmark-results.csv" download><span class="f">benchmark-results.csv</span><span class="d">Consistency and median percentile: 2 models × 15 challenges × 5 planners.</span></a>
+    <a class="dl" href="data/kaggle-original-splits.csv" download><span class="f">kaggle-original-splits.csv</span><span class="d">Real Kaggle leaderboard check, 6 challenges, including ReAct-Code.</span></a>
+    <a class="dl" href="data/tool-masking-ablation.csv" download><span class="f">tool-masking-ablation.csv</span><span class="d">Hierarchical MCTS with and without tool masking, 5 challenges.</span></a>
+    <a class="dl" href="data/cost-gpt-4.1-mini.csv" download><span class="f">cost-gpt-4.1-mini.csv</span><span class="d">Dollar cost per planner and challenge, 10 runs each.</span></a>
+    <a class="dl" href="data/tasks.csv" download><span class="f">tasks.csv</span><span class="d">The 15 challenges: Kaggle slug, type, metric and target column.</span></a>
+    <a class="dl" href="data/tools.csv" download><span class="f">tools.csv</span><span class="d">All 61 tools with group, scratchpad kind and the stages that expose them.</span></a>
+  </div>
+  <div class="scope">
+    <p><strong>Scope.</strong> GPT-4o and GPT-4.1-mini were chosen to fit a $5,000 budget: with 10 runs per planner and challenge and hundreds of LLM calls per tree search, frontier models would have cost several times more. The benchmark covers tabular classification and regression only.</p>  </div>
+</section>
+
+<section id="cite">
+  <div class="col">
+    <p class="eyebrow">Citation</p>
+    <h2>BibTeX</h2>
+  </div>
+  <div class="bib"><button type="button" id="copyBib">Copy</button><pre id="bibText">@article{chittepu2025mltoolbench,
+  title   = {{ML-Tool-Bench}: Tool-Augmented Planning for {ML} Tasks},
+  author  = {Chittepu, Yaswanth and Addanki, Raghavendra and Mai, Tung
+             and Rao, Anup and Kveton, Branislav},
+  journal = {arXiv preprint arXiv:2512.00672},
+  year    = {2025}
+}</pre></div>
+</section>
+
+<footer>
+  <p>Work done during an internship at Adobe Research. Code released under the MIT License.</p>
+  <p><a href="../">← Back to Yaswanth Chittepu's homepage</a></p>
+</footer>
+</div>
+
+<script>
+const DATA = {"tasks":[{"id":"spaceship_titanic","name":"Spaceship Titanic","kaggle":"spaceship-titanic","type":"binary","metric":"accuracy","target":"Transported","short":"Spaceship Titanic"},{"id":"santander_value_prediction_challenge","name":"Santander Value Prediction Challenge","kaggle":"santander-value-prediction-challenge","type":"regression","metric":"rmsle","target":"target","short":"Santander Value"},{"id":"nyc_taxi_fare_prediction","name":"New York City Taxi Fare Prediction","kaggle":"new-york-city-taxi-fare-prediction","type":"regression","metric":"rmse","target":"fare_amount","short":"NYC Taxi Fare"},{"id":"nyc_taxi_trip_duration","name":"New York City Taxi Trip Duration","kaggle":"nyc-taxi-trip-duration","type":"regression","metric":"rmsle","target":"trip_duration","short":"NYC Taxi Trip Duration"},{"id":"bpm_prediction","name":"Predicting the Beats-per-Minute of Songs","kaggle":"playground-series-s5e9","type":"regression","metric":"rmse","target":"BeatsPerMinute","short":"Song BPM"},{"id":"calorie_expenditure_prediction","name":"Predict Calorie Expenditure","kaggle":"playground-series-s5e5","type":"regression","metric":"rmsle","target":"Calories","short":"Calorie Expenditure"},{"id":"california_housing_regression","name":"Regression with a Tabular California Housing Dataset","kaggle":"playground-series-s3e1","type":"regression","metric":"rmse","target":"MedHouseVal","short":"California Housing"},{"id":"used_car_prices_regression","name":"Regression of Used Car Prices","kaggle":"playground-series-s4e9","type":"regression","metric":"rmse","target":"price","short":"Used Car Prices"},{"id":"porto_seguro_safe_driver_prediction","name":"Porto Seguro's Safe Driver Prediction","kaggle":"porto-seguro-safe-driver-prediction","type":"binary","metric":"normalized_gini","target":"target","short":"Porto Seguro Safe Driver"},{"id":"costa_rican_household_poverty_level_prediction","name":"Costa Rican Household Poverty Level Prediction","kaggle":"costa-rican-household-poverty-prediction","type":"multiclass","metric":"macro_f1","target":"Target","short":"Costa Rican Poverty"},{"id":"forest_cover_type_prediction","name":"Forest Cover Type (Kernels Only)","kaggle":"forest-cover-type-kernels-only","type":"multiclass","metric":"accuracy","target":"Cover_Type","short":"Forest Cover Type"},{"id":"santander_customer_transaction_prediction","name":"Santander Customer Transaction Prediction","kaggle":"santander-customer-transaction-prediction","type":"binary","metric":"auc","target":"target","short":"Santander Transaction"},{"id":"poisonous_mushroom_prediction","name":"Binary Prediction of Poisonous Mushrooms","kaggle":"playground-series-s4e8","type":"binary","metric":"mcc","target":"class","short":"Poisonous Mushrooms"},{"id":"bank_deposit_classification","name":"Binary Classification with a Bank Dataset","kaggle":"playground-series-s5e8","type":"binary","metric":"auc","target":"y","short":"Bank Deposit"},{"id":"bank_churn_classification","name":"Binary Classification with a Bank Churn Dataset","kaggle":"playground-series-s4e1","type":"binary","metric":"auc","target":"Exited","short":"Bank Churn"}],"methods":["ReAct","LATS","MCTS-Outcome","MCTS-Shaped","Hierarchical MCTS"],"cons":{"gpt-4o":[[0.6,0.4,0.9,0.8,0.6],[0.9,0.6,0.5,1,1],[0,0.5,0.2,0.3,0.9],[0.3,0.3,1,0.2,0.3],[1,0.6,0,0.9,0.7],[0.8,0.8,1,0.9,1],[0.9,0.9,1,0.9,0.9],[0.9,0.4,0.4,0.9,1],[0.3,0.5,0,0.1,0.2],[0.5,0.5,0.7,0.3,1],[0.6,0.9,0,0,0],[0.5,0.8,0.8,0.7,0.4],[0.9,1,1,1,0.8],[0.5,0.8,0.4,0.6,0.7],[0.4,0.9,0.6,1,0.6]],"gpt-4.1-mini":[[0.1,0,0.4,0.7,0.2],[0.6,0.2,0,0.9,0.9],[0.2,0,0.1,0.1,0.9],[0.1,0.1,0.3,0.5,0.9],[0.4,0.1,0,1,0.8],[0.6,0.6,0,0.9,0.9],[0.7,0.3,0.3,0.8,0.8],[0.3,0.2,0.4,0.7,0.4],[0.2,0.1,0.1,0.7,0.9],[0.2,0.2,0.1,0,0.1],[0.2,0.2,0.3,0,0.7],[0.3,0.5,0.1,0.7,0.7],[0.5,0.5,0.2,1,0.6],[0.5,0.3,0.1,1,0.9],[0.5,0.8,0.5,1,0.9]]},"pct":{"gpt-4o":[[39.54,0,22.88,59.44,62.55],[0.09,7.17,7.12,14.87,0.27],[0,9.23,0,0,19.66],[0,0,100,0,0],[0.51,52.63,0,5.26,100],[0.16,13.43,14.47,14.47,14.47],[0.58,0.65,14.35,11.59,17.1],[3.0,0,0,9.35,100],[0,5.34,0,0,0],[50,0,100,0,100],[0.84,23.32,0,0,0],[1.14,2.27,3.49,3.49,0],[22.75,17.61,17.69,17.62,17.62],[8.64,27.5,0,27.24,26.37],[0,22.93,31.57,34.79,3.47]],"gpt-4.1-mini":[[0,0,0,62.11,0],[3.6,0,0,14.24,14.24],[0,0,0,0,20.94],[0,0,0,1.24,2.7],[0,0,0,100,100],[4.31,13.41,0,14.43,14.43],[21.59,0,0,21.59,21.59],[0,0,0,100,0],[0,0,0,17.01,17.01],[0,0,0,0,0],[0,0,0,0,99.44],[0,1.17,0,2.27,2.27],[6.23,6.97,0,14.36,16.32],[13.19,0,0,27.24,27.73],[14.66,31.09,0.94,31.57,34.02]]},"summary":{"gpt-4o":{"cons":[0.6,0.6,0.6,0.8,0.7],"pct":[0.58,7.17,7.12,9.36,17.1]},"gpt-4.1-mini":{"cons":[0.3,0.2,0.1,0.7,0.8],"pct":[0,0,0,14.43,16.32]}},"orig":{"tasks":["Spaceship Titanic","Song BPM","Calorie Expenditure","California Housing","Bank Deposit","Bank Churn"],"methods":["ReAct","LATS","MCTS-Outcome","MCTS-Shaped","Hierarchical MCTS","ReAct-Code"],"cons":[[0.3,0,0.6,0.6,0.4,1],[0.2,0.3,0,0.8,0.7,1],[0.4,0.3,0.2,0.3,0.6,0.7],[0.6,0.4,0.1,0.5,0.8,0.8],[0.4,0.5,0,1,0.6,0.8],[0.2,0.5,0.1,1,0.8,1]],"pct":[[0,0,39.77,41.69,0,48.08],[0,0,0,5.03,0.19,6.75],[0,0,0,0,16.81,24.29],[5.51,0,0,8.99,24.78,29.93],[0,13.47,0,27.65,27.29,37.48],[0,14.91,0,29.87,32.47,35.09]],"sum":{"cons":[0.35,0.35,0.1,0.7,0.65,0.9],"pct":[0,0,0,18.32,20.8,32.51]}},"abl":{"tasks":["Spaceship Titanic","Poisonous Mushrooms","Bank Churn","Santander Transaction","NYC Taxi Fare"],"methods":["ReAct","LATS","MCTS-Outcome","MCTS-Shaped","Hierarchical MCTS","Hierarchical MCTS, no tool masking"],"cons":[[0.1,0.1,0.1,0.7,0.5,0],[0.4,0.5,0.2,0.6,0.3,0.2],[0.3,0.3,0.3,0.9,0.9,0.3],[0.6,0.2,0,0.7,0.9,0.3],[0,0,0.4,0.1,0.8,0.4]],"pct":[[0,0,0,53.59,28.01,0],[0,6.6,0,16.99,0,0],[0,0,0,31.57,31.57,0],[2.27,0,0,2.27,2.27,0],[0,0,0,0,21.1,0]],"sum":{"cons":[0.3,0.2,0.2,0.7,0.8,0.3],"pct":[0,0,0,16.99,21.1,0]}},"cost":{"tasks":["Spaceship Titanic","Poisonous Mushrooms","Bank Churn","Santander Transaction","NYC Taxi Fare"],"methods":["ReAct","LATS","MCTS-Outcome","MCTS-Shaped","Hierarchical MCTS"],"v":[[1.66,22.29,3.22,8.44,3.93],[0.86,13.64,3.12,2.86,1.89],[1.21,9.98,1.44,1.79,5.65],[1.34,11.28,2.36,1.43,5.38],[2.02,17.83,2.72,4.07,5.56]],"sum":[7.08,75.02,12.86,18.59,22.42]},"tools":[["read_data","io","set"],["save_model","io","get"],["load_model","io","set"],["save_dataframe_to_csv","io","get"],["fillna_with_value","cleaning","override"],["fillna_with_median","cleaning","override"],["fillna_with_mean","cleaning","override"],["fillna_with_mode","cleaning","override"],["fillna_with_condition","cleaning","override"],["fillna_with_multiple_conditions","cleaning","override"],["fillna_with_conditional_aggregation","cleaning","override"],["fillna_with_custom_function","cleaning","override"],["drop_rows_with_missing","cleaning","override"],["get_missing_summary","cleaning","get"],["cast_columns","cleaning","override"],["cast_numeric_columns","cleaning","override"],["cast_integer_columns_to_float","cleaning","override"],["cast_categorical_columns","cleaning","override"],["create_numeric_feature","features","override"],["create_categorical_feature","features","override"],["create_conditional_feature","features","override"],["extract_string_pattern","features","override"],["split_string_column","features","override"],["create_group_aggregation","features","override"],["get_group_aggregation","features","get_set"],["create_rolling_feature","features","override"],["create_lag_feature","features","override"],["create_lead_feature","features","override"],["extract_datetime_features","features","override"],["create_time_delta","features","override"],["apply_custom_function","features","override"],["one_hot_encode","features","override"],["label_encode","features","override"],["normalize_features","features","override"],["encode_all_categorical_columns","features","override"],["normalize_all_numerical_columns","features","override"],["concatenate_train_test","dataframe","get_set"],["split_combined_into_train_test","dataframe","get_set"],["convert_dataframe_to_features_target","dataframe","get_set"],["convert_to_dataframe","dataframe","get_set"],["drop_feature","dataframe","get_set"],["get_features","dataframe","get_set"],["concatenate_dataframes","dataframe","get_set"],["join_dataframes","dataframe","get_set"],["rename_feature","dataframe","get_set"],["get_unique_values","dataframe","get_set"],["get_dataframe_dtypes_summary","dataframe","get"],["filter_dataframe","dataframe","get_set"],["tune_logistic_regressor","tuning","get_set"],["tune_linear_regressor","tuning","get_set"],["tune_random_forest_regressor","tuning","get_set"],["tune_random_forest_classifier","tuning","get_set"],["tune_xgboost_regressor","tuning","get_set"],["tune_xgboost_classifier","tuning","get_set"],["tune_lightgbm_regressor","tuning","get_set"],["tune_lightgbm_classifier","tuning","get_set"],["tune_catboost_regressor","tuning","get_set"],["tune_catboost_classifier","tuning","get_set"],["evaluate_regression_model","evaluation","get"],["evaluate_classification_model","evaluation","get"],["predict_target","evaluation","get_set"]],"stages":[["train_data_loading","Train Data Loading",["read_data","get_missing_summary"]],["test_data_loading","TestData Loading",["read_data","get_missing_summary"]],["combine_train_test","Combine Train and Test Data",["concatenate_train_test"]],["data_cleaning","Data Cleaning",["fillna_with_value","fillna_with_median","fillna_with_mean","fillna_with_mode","fillna_with_condition","fillna_with_multiple_conditions","fillna_with_conditional_aggregation","fillna_with_custom_function","get_missing_summary"]],["feature_engineering","Feature Engineering and Transformation",["create_numeric_feature","create_categorical_feature","create_conditional_feature","extract_string_pattern","split_string_column","create_group_aggregation","get_group_aggregation","create_rolling_feature","create_lag_feature","create_lead_feature","extract_datetime_features","create_time_delta","cast_columns","cast_numeric_columns","cast_integer_columns_to_float","cast_categorical_columns","apply_custom_function","one_hot_encode","label_encode","normalize_features","encode_all_categorical_columns","normalize_all_numerical_columns","convert_to_dataframe","concatenate_dataframes","join_dataframes","get_features","drop_feature","rename_feature","filter_dataframe","get_dataframe_dtypes_summary"]],["split_train_test","Split Train and Test Data",["split_combined_into_train_test"]],["train_data_to_features_target","Convert Train Data to Features and Target",["convert_dataframe_to_features_target","get_dataframe_dtypes_summary"]],["test_data_to_features","Convert Test Data to Features",["convert_dataframe_to_features_target","get_dataframe_dtypes_summary"]],["modeling","Model Training",["tune_logistic_regressor","tune_linear_regressor","tune_random_forest_regressor","tune_random_forest_classifier","tune_xgboost_regressor","tune_xgboost_classifier","tune_lightgbm_regressor","tune_lightgbm_classifier","tune_catboost_regressor","tune_catboost_classifier","evaluate_regression_model","evaluate_classification_model"]],["create_submission_dataframe","Make Predictions on Test Data and create submission files",["save_model","save_dataframe_to_csv","predict_target","cast_columns","get_features","concatenate_dataframes","rename_feature","drop_feature","get_dataframe_dtypes_summary"]]]};
+</script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
+function attachTip(container) {
+  const tip = document.createElement("div"); tip.className = "tip"; container.appendChild(tip);
+  return { show(html, x, y) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1; }, hide() { tip.style.opacity = 0; } };
+}
+function svgPoint(svg, container, x, y) {
+  const r = svg.getBoundingClientRect(), c = container.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  return [r.left - c.left + x * r.width / vb.width, r.top - c.top + y * r.height / vb.height];
+}
+function whenVisible(node, fn, threshold = 0.4) {
+  if (reduceMotion || !("IntersectionObserver" in window)) return;
+  let done = false;
+  new IntersectionObserver((es, ob) => { if (!done && es[0].isIntersecting) { done = true; ob.disconnect(); fn(); } }, { threshold }).observe(node);
+}
+const OURS = new Set(["MCTS-Shaped", "Hierarchical MCTS"]);
+const colorOf = m => m === "ReAct-Code" ? "--code" : OURS.has(m) ? "--ours" : "--base";
+
+/* ---------- 1. Scratchpad player ---------- */
+(() => {
+  const D = "data/public/spaceship_titanic/";
+  // [tool, kind, args, message, writes: [[key, type, mode]], reads: [keys]]
+  const steps = [
+    ["read_data", "set", `{"output": "train", "func_kwargs": {"filepath": "${D}train.csv"}}`, "Stored DataFrame 'train' (8000 × 14)", [["train", "DataFrame 8000×14", "new"]], []],
+    ["read_data", "set", `{"output": "test", "func_kwargs": {"filepath": "${D}test.csv"}}`, "Stored DataFrame 'test' (2000 × 13)", [["test", "DataFrame 2000×13", "new"]], []],
+    ["get_missing_summary", "get", `{"bindings": {"df": "train"}}`, "12 columns with missing values, about 2% each", [], ["train"]],
+    ["concatenate_train_test", "get_set", `{"bindings": {"train_df": "train", "test_df": "test"}, "output": "combined"}`, "Stored 'combined' (10000 rows, with split markers)", [["combined", "DataFrame 10000×15", "new"]], ["train", "test"]],
+    ["split_string_column", "override", `{"bindings": {"df": "combined"}, "func_kwargs": {"name_prefix": "Cabin", "source_column": "Cabin", "delimiter": "/"}}`, "Added Cabin_0, Cabin_1, Cabin_2 to 'combined'", [["combined", "DataFrame 10000×18", "over"]], ["combined"]],
+    ["fillna_with_median", "override", `{"bindings": {"df": "combined"}, "func_kwargs": {"columns": ["Age", "RoomService", "FoodCourt", "ShoppingMall", "Spa", "VRDeck"]}}`, "Filled 6 numeric columns", [["combined", "DataFrame 10000×18", "over"]], ["combined"]],
+    ["fillna_with_mode", "override", `{"bindings": {"df": "combined"}, "func_kwargs": {"columns": ["HomePlanet", "CryoSleep", "Destination", "VIP", "Cabin_0", "Cabin_2"]}}`, "Filled 6 categorical columns. No NaNs left in features.", [["combined", "DataFrame 10000×18", "over"]], ["combined"]],
+    ["drop_feature", "get_set", `{"bindings": {"df": "combined"}, "output": "features", "func_kwargs": {"column": ["Name", "Cabin", "Cabin_1"]}}`, "Stored 'features' (10000 × 15)", [["features", "DataFrame 10000×15", "new"]], ["combined"]],
+    ["encode_all_categorical_columns", "override", `{"bindings": {"df": "features"}, "func_kwargs": {"method": "one_hot"}}`, "One-hot encoded 6 columns", [["features", "DataFrame 10000×27", "over"]], ["features"]],
+    ["split_combined_into_train_test", "get_set", `{"bindings": {"combined": "features"}}`, "Stored 'train_df' and 'test_df'", [["train_df", "DataFrame 8000×26", "new"], ["test_df", "DataFrame 2000×26", "new"]], ["features"]],
+    ["convert_dataframe_to_features_target", "get_set", `{"bindings": {"df": "train_df"}, "func_kwargs": {"target_column": "Transported"}}`, "Stored 'X_train' and 'Y_train'", [["X_train", "DataFrame 8000×25", "new"], ["Y_train", "Series 8000", "new"]], ["train_df"]],
+    ["convert_dataframe_to_features_target", "get_set", `{"bindings": {"df": "test_df"}, "func_kwargs": {"target_column": "Transported", "is_train": false}}`, "Stored 'X_test'", [["X_test", "DataFrame 2000×25", "new"]], ["test_df"]],
+    ["tune_lightgbm_classifier", "get_set", `{"bindings": {"X_train": "X_train", "y_train": "Y_train"}, "func_kwargs": {"cv": 5}}`, "Best 5-fold CV accuracy 0.80. Stored 'best_estimator', 'best_params', 'best_cv_score'", [["best_estimator", "LGBMClassifier", "new"], ["best_params", "dict", "new"], ["best_cv_score", "float", "new"]], ["X_train", "Y_train"]],
+    ["predict_target", "get_set", `{"bindings": {"model": "best_estimator", "X_data": "X_test"}, "output": "preds"}`, "Stored 'preds' (2000 predictions)", [["preds", "DataFrame 2000×1", "new"]], ["best_estimator", "X_test"]],
+    ["save_dataframe_to_csv", "get", `{"bindings": {"df": "preds"}, "func_kwargs": {"filepath": "submission.csv"}}`, "Saved submission.csv. Valid: one row per test row, no NaNs.", [], ["preds"]],
+  ];
+  const callBody = document.getElementById("callBody"), padBody = document.getElementById("padBody");
+  const range = document.getElementById("stepRange"), label = document.getElementById("stepLabel"), playBtn = document.getElementById("playBtn");
+  range.max = steps.length;
+  const pads = [{}]; // state after k calls
+  steps.forEach(s => { const p = { ...pads[pads.length - 1] }; s[4].forEach(([k, t]) => p[k] = t); pads.push(p); });
+  function render(k, animate) {
+    callBody.innerHTML = k === 0 ? `<div class="call"><div class="msg" style="margin:0">Task prompt: train and test CSVs are in ${esc(D)}; save predictions to submission.csv.</div></div>` :
+      steps.slice(0, k).map((s, i) => `<div class="call${i === k - 1 ? " cur" : ""}"${i === k - 1 && !animate ? ' style="animation:none"' : ""}><div><span class="fn">${s[0]}</span><span class="kind ${s[1]}">${s[1]}</span></div><div class="args">${esc(s[2])}</div><div class="msg">${esc(s[3])}</div></div>`).join("");
+    callBody.scrollTop = callBody.scrollHeight;
+    const pad = pads[k], last = k ? steps[k - 1] : null;
+    const mode = {}; if (last) { last[5].forEach(x => mode[x] = "read"); last[4].forEach(([key, , m]) => mode[key] = m); }
+    padBody.innerHTML = Object.keys(pad).length ? Object.entries(pad).map(([key, ty]) => `<div class="obj ${mode[key] || ""}"><span class="key">${esc(key)}</span><span class="ty">${esc(ty)}</span></div>`).join("") : `<div class="muted">Empty. Nothing loaded yet.</div>`;
+    const n = Object.keys(pad).length;
+    document.getElementById("padCount").textContent = n + " object" + (n === 1 ? "" : "s");
+    document.getElementById("padNote").innerHTML = last ? (last[1] === "get" ? "This call only <b>read</b> from the scratchpad (blue outline) and returned text." : last[1] === "override" ? "This call <b>overwrote</b> an object in place (amber)." : "Green objects were just <b>written</b>; blue outlines were read.") + " Rows of data sent through the LLM: 0." : "Rows of data sent through the LLM: 0.";
+    range.value = k; label.textContent = `call ${k} / ${steps.length}`;
+  }
+  let i = 0, timer = null;
+  const setPlay = on => { playBtn.setAttribute("aria-label", on ? "Pause" : "Play"); playBtn.innerHTML = on ? '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>' : '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>'; };
+  function stop() { clearInterval(timer); timer = null; setPlay(false); }
+  function play() { if (i >= steps.length) { i = 0; render(0, true); } setPlay(true); timer = setInterval(() => { if (i >= steps.length) { stop(); return; } i++; render(i, true); }, 1700); }
+  playBtn.onclick = () => timer ? stop() : play();
+  document.getElementById("resetBtn").onclick = () => { stop(); i = 0; render(0, true); };
+  range.oninput = () => { stop(); i = +range.value; render(i, false); };
+  render(0, false);
+  whenVisible(document.getElementById("player"), play, 0.5);
+})();
+
+/* ---------- 2. Tool explorer ---------- */
+(() => {
+  const groups = ["io", "cleaning", "features", "dataframe", "tuning", "evaluation"];
+  const gname = { io: "Input / output", cleaning: "Cleaning", features: "Feature engineering", dataframe: "Dataframe ops", tuning: "Model tuning", evaluation: "Evaluation & prediction" };
+  const kcol = { set: "--k-set", get: "--k-get", get_set: "--k-getset", override: "--k-over" };
+  const box = document.getElementById("toolGroups");
+  box.innerHTML = groups.map(g => `<div class="grp"><h3>${gname[g]} · ${DATA.tools.filter(t => t[1] === g).length}</h3><ul>${DATA.tools.filter(t => t[1] === g).map(t => `<li data-t="${t[0]}" title="${t[2]}"><i style="background:var(${kcol[t[2]]})"></i>${t[0]}</li>`).join("")}</ul></div>`).join("");
+  const bar = document.getElementById("stageBar");
+  const opts = [["all", "All tools", null]].concat(DATA.stages.map((s, i) => [s[0], (i + 1) + ". " + s[1].replace("TestData", "Test Data").replace("Make Predictions on Test Data and create submission files", "Predict & submit").replace("Feature Engineering and Transformation", "Feature engineering").replace("Convert Train Data to Features and Target", "Train X / y").replace("Convert Test Data to Features", "Test X").replace("Combine Train and Test Data", "Combine train + test").replace("Split Train and Test Data", "Split back"), s[2]]));
+  bar.innerHTML = opts.map((o, i) => `<button type="button" data-i="${i}" aria-pressed="${i === 0}">${esc(o[1])}<span class="n">${o[2] ? o[2].length : 61}</span></button>`).join("");
+  function pick(i) {
+    const allow = opts[i][2] ? new Set(opts[i][2]) : null;
+    bar.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.i === i));
+    box.querySelectorAll("li").forEach(li => { const on = !allow || allow.has(li.dataset.t); li.classList.toggle("off", !on); li.classList.toggle("on", !!allow && on); });
+    document.getElementById("toolCount").innerHTML = allow ? `<b>${allow.size}</b> of 61 tools available in stage ${i}: ${esc(opts[i][1].replace(/^\d+\. /, ""))}` : `All <b>61</b> tools. Colored dots show how each tool uses the scratchpad.`;
+  }
+  bar.onclick = e => { const b = e.target.closest("button"); if (b) pick(+b.dataset.i); };
+  pick(0);
+})();
+
+/* ---------- 3. Shaped-reward ladder ---------- */
+(() => {
+  const st = ["Load train data", "Load test data", "Combine train and test", "Clean: no NaNs left", "Encode all categoricals, bounded width", "Split back into train and test", "Extract X_train, y_train", "Extract X_test", "Fit a model (reward ∝ CV score)", "Write a valid submission"];
+  // a scripted run: checks pass in order, feature engineering fails once, then is fixed
+  const script = [[0, "hit"], [1, "hit"], [2, "hit"], [3, "hit"], [4, "miss", "Feature engineering check failed: columns <b>HomePlanet</b>, <b>Destination</b> are still categorical. Encode them before modeling."], [4, "hit"], [5, "hit"], [6, "hit"], [7, "hit"], [8, "hit", "Model fit. Reward scales with 5-fold CV accuracy (0.80)."], [9, "hit", "submission.csv is valid. All 10 stage rewards collected."]];
+  const ol = document.getElementById("ladder"), fb = document.getElementById("feedback");
+  ol.innerHTML = st.map(s => `<li><span>${s}</span><span class="r">—</span></li>`).join("");
+  const lis = [...ol.children];
+  function at(k) {
+    lis.forEach(li => { li.className = ""; li.querySelector(".r").textContent = "—"; });
+    let msg = "Searching… each new node is checked against the next unpassed stage.";
+    for (let j = 0; j <= k && j < script.length; j++) {
+      const [s, r, m] = script[j];
+      lis[s].className = r; lis[s].querySelector(".r").textContent = r === "hit" ? "+ reward" : "feedback";
+      msg = m || (r === "hit" ? `Stage ${s + 1} passed: ${st[s].toLowerCase()}.` : msg);
+    }
+    fb.innerHTML = msg;
+  }
+  at(-1);
+  if (reduceMotion) { at(script.length - 1); return; }
+  whenVisible(ol, () => { let k = 0; const t = setInterval(() => { at(k); k++; if (k > script.length + 2) k = 0; }, 1400); });
+})();
+
+/* ---------- 4. Results ---------- */
+function hbars(box, names, vals, max, ticks, fmtv, aria, tipExtra) {
+  box.querySelectorAll("svg, .tip").forEach(n => n.remove());
+  const W = 460, L = 128, R = 46, bh = 16, gap = 10, T = 4;
+  const H = T + names.length * (bh + gap) + 20;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": aria }, box);
+  const x = v => L + (W - L - R) * v / max;
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  ticks.forEach(t => { el("line", { x1: x(t), x2: x(t), y1: T, y2: H - 18 }, g); const tx = el("text", { x: x(t), y: H - 4, "text-anchor": "middle" }, ax); tx.textContent = fmtv(t); });
+  const tip = attachTip(box);
+  names.forEach((n, i) => {
+    const y = T + i * (bh + gap) + 2, v = vals[i], w = Math.max(2, x(v) - L);
+    const lab = el("text", { x: 0, y: y + bh - 4, style: `font:${OURS.has(n) ? 600 : 400} 12px var(--sans);fill:var(--ink)` }, svg); lab.textContent = n;
+    el("rect", { x: L, y, width: w, height: bh, rx: 3, fill: css(colorOf(n)) }, svg);
+    const t = el("text", { x: L + w + 5, y: y + bh - 4, style: "font:500 11px var(--mono);fill:var(--ink)" }, svg); t.textContent = fmtv(v);
+    const hit = el("rect", { x: 0, y: y - gap / 2, width: W, height: bh + gap, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, L + w, y); tip.show(`<b>${n}</b><br><span class="n">${fmtv(v)}</span>${tipExtra ? tipExtra(i) : ""}`, px, py); });
+    hit.addEventListener("mouseleave", tip.hide);
+  });
+  el("line", { x1: L, x2: L, y1: T, y2: H - 18, class: "base" }, svg);
+}
+const f1 = v => (+v).toFixed(1), f2 = v => (+v).toFixed(2);
+(() => {
+  let model = "gpt-4o";
+  const NOTES = {
+    "gpt-4o": "Hierarchical MCTS has the best median percentile (17.1), 9.9 points above LATS and 16.5 above ReAct. MCTS-Shaped is the most consistent (0.8). Wins are spread out: no single planner is best on every challenge, and several challenges show all-or-nothing scores, where the median run either beats the whole leaderboard or fails.",
+    "gpt-4.1-mini": "With the smaller model the gap widens. ReAct, LATS and MCTS-Outcome all have a median percentile of 0 across challenges, while MCTS-Shaped (14.4) and Hierarchical MCTS (16.3) still produce valid, competitive submissions, with consistency 0.7 and 0.8.",
+  };
+  const heat = document.getElementById("heat"), tableBox = document.getElementById("resTable");
+  function heatColor(v) {
+    const a = css("--heat-0"), b = css("--heat-1"), u = Math.pow(v / 100, 0.6);
+    const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const [r1, g1, b1] = p(a), [r2, g2, b2] = p(b);
+    return `rgb(${Math.round(r1 + (r2 - r1) * u)},${Math.round(g1 + (g2 - g1) * u)},${Math.round(b1 + (b2 - b1) * u)})`;
+  }
+  function draw() {
+    const S = DATA.summary[model], M = DATA.methods;
+    hbars(document.getElementById("pctChart"), M, S.pct, 20, [0, 5, 10, 15, 20], f1, "Median leaderboard percentile by planner");
+    hbars(document.getElementById("consChart"), M, S.cons, 1, [0, 0.25, 0.5, 0.75, 1], f2, "Consistency by planner");
+    const P = DATA.pct[model], Cn = DATA.cons[model];
+    const tyShort = { regression: "reg", binary: "bin", multiclass: "multi" };
+    heat.querySelectorAll("table, .tip").forEach(n => n.remove());
+    const tip = attachTip(heat);
+    const tbl = document.createElement("table");
+    tbl.innerHTML = `<thead><tr><th>Challenge</th>${M.map(m => `<th class="${OURS.has(m) ? "ours" : ""}">${m.replace("Hierarchical MCTS", "Hier. MCTS")}</th>`).join("")}</tr></thead><tbody>` +
+      DATA.tasks.map((t, i) => `<tr><td>${t.short}<span class="ty">${tyShort[t.type]}</span></td>${M.map((m, j) => { const v = P[i][j]; return `<td data-i="${i}" data-j="${j}" style="background:${heatColor(v)};color:${v > 55 ? css("--heat-ink-hi") : css("--ink")}">${v === 0 ? "0" : v >= 99.5 ? "100" : v.toFixed(1)}</td>`; }).join("")}</tr>`).join("") +
+      `<tr class="med"><td>Median</td>${M.map((m, j) => `<td style="color:${css("--ink")}">${S.pct[j].toFixed(1)}</td>`).join("")}</tr></tbody>`;
+    heat.prepend(tbl);
+    tbl.addEventListener("mousemove", e => {
+      const td = e.target.closest("td[data-i]"); if (!td) { tip.hide(); return; }
+      const i = +td.dataset.i, j = +td.dataset.j, t = DATA.tasks[i];
+      const r = td.getBoundingClientRect(), c = heat.getBoundingClientRect();
+      tip.show(`<b>${t.name}</b> · ${M[j]}<br>percentile <span class="n">${P[i][j].toFixed(2)}</span> · consistency <span class="n">${Cn[i][j].toFixed(1)}</span><br><span style="opacity:.75">${t.type}, ${t.metric.toUpperCase().replace("_", " ")}</span>`, r.left - c.left + r.width / 2 + heat.scrollLeft, r.top - c.top);
+    });
+    tbl.addEventListener("mouseleave", tip.hide);
+    const best = (row) => Math.max(...row);
+    tableBox.innerHTML = `<table class="data"><thead><tr><th>Challenge</th>${M.map(m => `<th class="${OURS.has(m) ? "ours" : ""}" colspan="2">${m}</th>`).join("")}</tr><tr><th></th>${M.map(m => `<th class="${OURS.has(m) ? "ours" : ""}">pct.</th><th class="${OURS.has(m) ? "ours" : ""}">cons.</th>`).join("")}</tr></thead><tbody>` +
+      DATA.tasks.map((t, i) => `<tr><td>${t.name}</td>${M.map((m, j) => { const o = OURS.has(m) ? " ours" : ""; return `<td class="${P[i][j] === best(P[i]) && P[i][j] > 0 ? "best" : ""}${o}">${P[i][j].toFixed(2)}</td><td class="${Cn[i][j] === best(Cn[i]) ? "best" : ""}${o}">${Cn[i][j].toFixed(1)}</td>`; }).join("")}</tr>`).join("") +
+      `<tr class="med"><td>Median</td>${M.map((m, j) => { const o = OURS.has(m) ? " ours" : ""; return `<td class="${o}">${S.pct[j].toFixed(2)}</td><td class="${o}">${S.cons[j].toFixed(2)}</td>`; }).join("")}</tr></tbody></table>`;
+    document.getElementById("resNote").textContent = NOTES[model];
+  }
+  document.querySelectorAll("#modelSeg button").forEach(b => b.onclick = () => { document.querySelectorAll("#modelSeg button").forEach(x => x.setAttribute("aria-pressed", x === b)); model = b.dataset.v; draw(); });
+  document.querySelectorAll("#viewSeg button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#viewSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    const t = b.dataset.v === "table"; tableBox.hidden = !t; document.getElementById("resChart").hidden = t;
+  });
+  draw();
+})();
+
+/* ---------- 5. Cost + code comparison ---------- */
+hbars(document.getElementById("costChart"), DATA.cost.methods, DATA.cost.sum, 80, [0, 20, 40, 60, 80], v => "$" + (+v).toFixed(0), "Total cost by planner. LATS 75 dollars, ReAct 7.",
+  i => `<br>${DATA.cost.tasks.map((t, k) => `${t}: $${DATA.cost.v[k][i].toFixed(2)}`).join("<br>")}`);
+hbars(document.getElementById("codeChart"), DATA.orig.methods, DATA.orig.sum.pct, 40, [0, 10, 20, 30, 40], f1, "Real Kaggle leaderboard percentile by method, including ReAct-Code at 32.5",
+  i => `<br>consistency <span class="n">${DATA.orig.sum.cons[i].toFixed(2)}</span>`);
+
+/* ---------- 6. Task table + copy buttons ---------- */
+(() => {
+  const metric = { accuracy: "Accuracy", auc: "AUC", rmse: "RMSE", rmsle: "RMSLE", mcc: "MCC", macro_f1: "Macro-F1", normalized_gini: "Normalized Gini" };
+  const url = t => t.kaggle === "forest-cover-type-kernels-only" || t.kaggle === "costa-rican-household-poverty-prediction" ? `https://www.kaggle.com/c/${t.kaggle}` : `https://www.kaggle.com/competitions/${t.kaggle}`;
+  document.getElementById("taskTable").innerHTML = `<table class="data"><thead><tr><th>Challenge</th><th>Type</th><th>Metric</th><th>Target</th><th>Task id</th></tr></thead><tbody>` +
+    DATA.tasks.map(t => `<tr><td><a href="${url(t)}">${esc(t.name)}</a></td><td>${t.type}</td><td>${metric[t.metric]}</td><td>${esc(t.target)}</td><td>${t.id}</td></tr>`).join("") + `</tbody></table>`;
+  const copy = (btn, getText) => btn.onclick = async () => { try { await navigator.clipboard.writeText(getText()); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Select & copy"; } setTimeout(() => btn.textContent = "Copy", 1500); };
+  document.querySelectorAll(".codebox").forEach(cb => copy(cb.querySelector(".copy"), () => cb.querySelector("pre").textContent));
+  copy(document.getElementById("copyBib"), () => document.getElementById("bibText").textContent);
+})();
+</script>
+</body>
+</html>

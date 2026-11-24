@@ -1,0 +1,31 @@
+task,method,consistency,median_percentile
+Spaceship Titanic,ReAct,0.1,0
+Spaceship Titanic,LATS,0.1,0
+Spaceship Titanic,MCTS-Outcome,0.1,0
+Spaceship Titanic,MCTS-Shaped,0.7,53.59
+Spaceship Titanic,Hierarchical MCTS,0.5,28.01
+Spaceship Titanic,"Hierarchical MCTS, no tool masking",0,0
+Poisonous Mushrooms,ReAct,0.4,0
+Poisonous Mushrooms,LATS,0.5,6.6
+Poisonous Mushrooms,MCTS-Outcome,0.2,0
+Poisonous Mushrooms,MCTS-Shaped,0.6,16.99
+Poisonous Mushrooms,Hierarchical MCTS,0.3,0
+Poisonous Mushrooms,"Hierarchical MCTS, no tool masking",0.2,0
+Bank Churn,ReAct,0.3,0
+Bank Churn,LATS,0.3,0
+Bank Churn,MCTS-Outcome,0.3,0
+Bank Churn,MCTS-Shaped,0.9,31.57
+Bank Churn,Hierarchical MCTS,0.9,31.57
+Bank Churn,"Hierarchical MCTS, no tool masking",0.3,0
+Santander Transaction,ReAct,0.6,2.27
+Santander Transaction,LATS,0.2,0
+Santander Transaction,MCTS-Outcome,0,0
+Santander Transaction,MCTS-Shaped,0.7,2.27
+Santander Transaction,Hierarchical MCTS,0.9,2.27
+Santander Transaction,"Hierarchical MCTS, no tool masking",0.3,0
+NYC Taxi Fare,ReAct,0,0
+NYC Taxi Fare,LATS,0,0
+NYC Taxi Fare,MCTS-Outcome,0.4,0
+NYC Taxi Fare,MCTS-Shaped,0.1,0
+NYC Taxi Fare,Hierarchical MCTS,0.8,21.1
+NYC Taxi Fare,"Hierarchical MCTS, no tool masking",0.4,0
