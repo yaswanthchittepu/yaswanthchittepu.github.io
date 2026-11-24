@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compact State Abstractions for LLM Agents</title>
+<meta name="description" content="Instead of conditioning on the full interaction history, an LLM agent can carry a compact state computed by a learned, inspectable Python program. Up to 71% fewer policy input tokens on ALFWorld, 57% on ScienceWorld and 95% on long-horizon BabyAI, with no detectable loss in task success.">
+<meta property="og:title" content="Learning Compact State Abstractions for LLM Agents">
+<meta property="og:description" content="LLM agents can carry a compact state computed by a learned, readable Python program instead of their full history: up to 71% fewer policy tokens on ALFWorld and 95% on long-horizon BabyAI, with no detectable loss in success.">
+<meta property="og:image" content="https://yaswanthchittepu.github.io/compact-states/media/history-vs-state.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root {
+    --ground: #F6F7FA;
+    --surface: #FFFFFF;
+    --ink: #141827;
+    --ink-2: #4A5068;
+    --ink-3: #6E7489;
+    --rule: #DDE1EA;
+    --code-bg: #EEF0F5;
+
+    /* series: each method keeps its color everywhere on the page */
+    --phi: #1D5FB4;
+    --phi-wash: rgba(29, 95, 180, 0.10);
+    --full: #8A90A3;
+    --full-wash: rgba(138, 144, 163, 0.16);
+    --llms: #B57A00;
+    --acon: #B8324A;
+    --drop: #B8324A;
+    --drop-wash: rgba(184, 50, 74, 0.10);
+    --ok: #1F7A4D;
+    --ok-wash: rgba(31, 122, 77, 0.10);
+
+    --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --measure: 42rem;
+    --wide: 66rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3;
+      --rule: #2A3042; --code-bg: #1C2130;
+      --phi: #7AA8F2; --phi-wash: rgba(122, 168, 242, 0.14);
+      --full: #7C8399; --full-wash: rgba(124, 131, 153, 0.18);
+      --llms: #E7B53C; --acon: #F0808F; --drop: #F0808F; --drop-wash: rgba(240, 128, 143, 0.12);
+      --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3;
+    --rule: #2A3042; --code-bg: #1C2130;
+    --phi: #7AA8F2; --phi-wash: rgba(122, 168, 242, 0.14);
+    --full: #7C8399; --full-wash: rgba(124, 131, 153, 0.18);
+    --llms: #E7B53C; --acon: #F0808F; --drop: #F0808F; --drop-wash: rgba(240, 128, 143, 0.12);
+    --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 400 1.0625rem/1.65 var(--sans); padding-inline: 16px; }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--phi); text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--phi); outline-offset: 3px; border-radius: 3px; }
+  .wrap { max-width: var(--wide); margin-inline: auto; }
+  .col { max-width: var(--measure); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .phi { color: var(--phi); }
+  code { font: 400 0.88em var(--mono); background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+  /* ---------- hero ---------- */
+  header.hero { padding-block: 4.5rem 3rem; display: grid; gap: 1.5rem; }
+  .venue { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; font: 500 0.8rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .venue .badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 999px; background: var(--phi-wash); color: var(--phi); border: 1px solid currentColor; }
+  h1 { font: 500 clamp(2.1rem, 5vw, 3.35rem)/1.08 var(--serif); letter-spacing: -0.015em; margin: 0; max-width: 22ch; text-wrap: balance; }
+  h1 em { font-style: italic; }
+  .authors { display: grid; gap: 0.35rem; font-size: 1rem; }
+  .authors ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+  .authors li { white-space: nowrap; }
+  .authors sup, .affil sup { font: 500 0.7em var(--mono); color: var(--ink-3); margin-left: 1px; }
+  .affil { color: var(--ink-2); font-size: 0.92rem; }
+  .links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; font: 500 0.92rem/1 var(--sans); padding: 0.65rem 1rem; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); text-decoration: none; cursor: pointer; }
+  .btn:hover { border-color: var(--ink-3); text-decoration: none; }
+  .btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .btn.soon { color: var(--ink-3); cursor: default; border-style: dashed; }
+  .btn.soon:hover { border-color: var(--rule); }
+  .btn svg { width: 1rem; height: 1rem; flex: none; }
+  .thesis { margin-top: 1.5rem; border-top: 1px solid var(--rule); padding-top: 2.25rem; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center; }
+  .eq-big { white-space: nowrap; }
+  .eq-big .katex { font-size: clamp(1.7rem, 4.6vw, 2.8rem); }
+  .thesis p { margin: 0; font-size: 1.12rem; color: var(--ink-2); max-width: 34rem; }
+  .thesis p strong { color: var(--ink); font-weight: 600; }
+  .heads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.5rem; }
+  .head { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1rem 1.1rem; }
+  .head .val { font: 500 1.9rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+  .head .lab { font-size: 0.88rem; color: var(--ink-2); margin-top: 0.35rem; line-height: 1.4; }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 3.25rem; border-top: 1px solid var(--rule); }
+  .eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 0.9rem; }
+  h2 { font: 500 clamp(1.6rem, 3.4vw, 2.15rem)/1.15 var(--serif); letter-spacing: -0.01em; margin: 0 0 1.1rem; text-wrap: balance; max-width: 30ch; }
+  h3 { font: 600 1.02rem/1.35 var(--sans); margin: 0 0 0.4rem; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink-2); }
+  .muted { color: var(--ink-3); font-size: 0.88rem; }
+  details.abstract { margin-top: 0.5rem; }
+  details summary { cursor: pointer; font: 500 0.92rem var(--sans); color: var(--ink-2); list-style: none; display: inline-flex; gap: 0.4rem; align-items: center; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: "+"; font-family: var(--mono); color: var(--ink-3); }
+  details[open] summary::before { content: "−"; }
+  details.abstract p { margin-top: 0.9rem; color: var(--ink-2); font-size: 0.98rem; }
+
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--surface); gap: 2px; }
+  .seg button { font: 500 0.86rem/1 var(--sans); color: var(--ink-2); background: transparent; border: 0; border-radius: 999px; padding: 0.55rem 0.9rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+  .fig-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: clamp(1rem, 2.5vw, 1.5rem); }
+
+  /* ---------- episode player ---------- */
+  .player { margin-top: 2rem; }
+  .player .task { font: 500 0.92rem var(--mono); color: var(--ink-2); margin-bottom: 1rem; }
+  .player .task b { color: var(--ink); font-weight: 500; }
+  .lanes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+  .lane { border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); display: grid; grid-template-rows: auto 1fr auto; min-height: 26rem; overflow: hidden; }
+  .lane-h { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; padding: 0.8rem 1rem; border-bottom: 1px solid var(--rule); background: var(--surface); }
+  .lane-h .t { font: 600 0.92rem var(--sans); }
+  .lane-h .t i { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 2px; margin-right: 0.45rem; }
+  .lane-h .eq { font-size: 0.85rem; color: var(--ink-3); }
+  .lane-body { padding: 0.8rem 1rem; overflow: auto; max-height: 22rem; font: 400 0.8rem/1.5 var(--mono); }
+  .hist .turn { padding: 0.3rem 0 0.3rem 0.6rem; border-left: 2px solid var(--rule); margin-bottom: 0.35rem; color: var(--ink-2); }
+  .hist .turn .a { color: var(--ink); font-weight: 500; }
+  .hist .turn.new { border-left-color: var(--full); animation: rise 0.45s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .state pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; color: var(--ink-2); }
+  .state .k { color: var(--ink-3); }
+  .state .chg { background: var(--phi-wash); color: var(--phi); border-radius: 3px; transition: background 1.2s; }
+  .state .gone { color: var(--ink-3); text-decoration: line-through; }
+  .incoming { margin: 0 0 0.8rem; padding: 0.5rem 0.65rem; border: 1px dashed var(--rule); border-radius: 8px; color: var(--ink-3); font-size: 0.76rem; }
+  .incoming b { color: var(--ink-2); font-weight: 500; }
+  .meter { padding: 0.75rem 1rem 0.9rem; border-top: 1px solid var(--rule); background: var(--surface); }
+  .meter .row { display: flex; justify-content: space-between; font: 500 0.78rem var(--mono); color: var(--ink-2); margin-bottom: 0.35rem; }
+  .meter .track { height: 8px; border-radius: 999px; background: var(--code-bg); overflow: hidden; }
+  .meter .fillbar { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+  .controls input[type=range] { flex: 1 1 12rem; accent-color: var(--phi); }
+  .controls .stepn { font: 500 0.85rem var(--mono); color: var(--ink-2); min-width: 6.5rem; }
+  .iconbtn { width: 2.4rem; height: 2.4rem; display: inline-grid; place-items: center; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; padding: 0; }
+  .iconbtn svg { width: 1rem; height: 1rem; }
+
+  /* definition + objective */
+  .defn { margin-top: 1.75rem; border-left: 3px solid var(--phi); padding: 0.4rem 0 0.4rem 1.2rem; max-width: 46rem; }
+  .defn p { font: 400 1.25rem/1.5 var(--serif); margin: 0; }
+  .derive { margin-top: 2.25rem; display: grid; gap: 1.5rem; max-width: 54rem; }
+  .derive .row { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+  .derive .key { font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.04em; color: var(--ink-3); text-transform: uppercase; padding-top: 0.55rem; }
+  .derive .v { min-width: 0; }
+  .derive .eqs { overflow-x: auto; overflow-y: hidden; }
+  .derive .katex-display { margin: 0.1rem 0 0.5rem; text-align: left; }
+  .derive .katex-display > .katex { text-align: left; }
+  .derive .note { display: block; font-size: 0.93rem; color: var(--ink-2); }
+  .why { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.7rem; }
+  .why li { font-size: 0.95rem; color: var(--ink-2); padding-left: 1rem; border-left: 2px solid var(--rule); }
+  .why li b { color: var(--ink); font-weight: 600; }
+  .nest { display: grid; grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); gap: 1.5rem; align-items: center; margin-top: 0.5rem; }
+  .nest svg { width: 100%; height: auto; }
+
+  /* search loop */
+  .loop { margin-top: 2rem; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 14px; background: var(--surface); overflow: hidden; counter-reset: s; }
+  .loop > div { padding: 1.25rem 1.1rem; position: relative; }
+  .loop > div + div { border-left: 1px solid var(--rule); }
+  .loop .stepno { display: block; font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 0.7rem; }
+  .loop p { font-size: 0.9rem; color: var(--ink-2); margin: 0; }
+  .loop > div.active { background: var(--phi-wash); }
+  .loop > div.active .stepno { color: var(--phi); }
+  .loop-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem; margin-top: 0.8rem; font-size: 0.88rem; color: var(--ink-3); }
+  .stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.75rem; }
+  .stat { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1.2rem 1.3rem; }
+  .stat .lab { font: 500 0.72rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .val { font: 500 2rem/1.15 var(--mono); font-variant-numeric: tabular-nums; margin-top: 0.4rem; }
+  .stat p { margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+
+  /* charts */
+  .chart { position: relative; }
+  .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart text { font-family: var(--sans); fill: var(--ink-2); }
+  .chart .axis text { font: 400 11px var(--mono); fill: var(--ink-3); }
+  .chart .grid line { stroke: var(--rule); stroke-width: 1; }
+  .chart .base { stroke: var(--ink-3); stroke-width: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.85rem; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -1px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--ground); font: 400 0.8rem/1.45 var(--sans); padding: 0.5rem 0.65rem; border-radius: 8px; white-space: nowrap; opacity: 0; transform: translate(-50%, calc(-100% - 10px)); transition: opacity 0.12s; z-index: 5; }
+  .tip b { font-weight: 600; }
+  .tip .n { font-family: var(--mono); }
+  .two { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.25rem; margin-top: 1.5rem; }
+  .two > * { min-width: 0; }
+  .card h3 .sub { font-weight: 400; color: var(--ink-3); font-size: 0.88rem; }
+
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.data th, table.data td { padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data th { font: 500 0.68rem/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); vertical-align: bottom; }
+  table.data td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  table.data td:first-child { font-family: var(--sans); color: var(--ink); }
+  table.data td.best { color: var(--ink); font-weight: 600; }
+  table.data td .red { color: var(--ink-3); font-size: 0.85em; }
+  table.data th.ours, table.data td.ours { background: var(--phi-wash); }
+  .tablewrap { overflow-x: auto; }
+
+  /* programs explorer */
+  .prog { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 1.25rem; margin-top: 1.5rem; }
+  .famlist { display: grid; gap: 0.25rem; align-content: start; }
+  .famlist .grp { font: 500 0.7rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0.8rem 0 0.35rem; }
+  .famlist .grp:first-child { margin-top: 0; }
+  .famlist button { text-align: left; font: 500 0.92rem/1.2 var(--sans); color: var(--ink-2); background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0.5rem 0.7rem; cursor: pointer; display: flex; justify-content: space-between; gap: 0.5rem; }
+  .famlist button .r { font: 400 0.78rem var(--mono); color: var(--ink-3); }
+  .famlist button[aria-pressed="true"] { background: var(--surface); border-color: var(--rule); color: var(--ink); }
+  .famlist button[aria-pressed="true"] .r { color: var(--phi); }
+  .progmeta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0 1rem; }
+  .pill { font: 500 0.78rem/1 var(--mono); padding: 0.4rem 0.6rem; border-radius: 999px; background: var(--code-bg); color: var(--ink-2); }
+  .pill.blue { background: var(--phi-wash); color: var(--phi); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+  .chips span { font-size: 0.84rem; padding: 0.3rem 0.6rem; border: 1px solid var(--rule); border-radius: 6px; color: var(--ink-2); background: var(--ground); }
+  .codebox { position: relative; }
+  .codebox pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1.1rem 1.2rem; overflow-x: auto; font: 400 0.8rem/1.6 var(--mono); color: var(--ink); max-height: 30rem; }
+  .codebox .copy, .bib button { position: absolute; top: 0.6rem; right: 0.6rem; font: 500 0.78rem/1 var(--sans); padding: 0.45rem 0.75rem; border-radius: 999px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); cursor: pointer; }
+  .tok-kw { color: var(--phi); }
+  .tok-str { color: var(--ok); }
+  .tok-com { color: var(--ink-3); font-style: italic; }
+
+  .downloads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.5rem; }
+  .dl { display: grid; gap: 0.25rem; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); text-decoration: none; color: var(--ink); }
+  .dl:hover { border-color: var(--ink-3); text-decoration: none; }
+  .dl .f { font: 500 0.85rem var(--mono); color: var(--phi); }
+  .dl .d { font-size: 0.88rem; color: var(--ink-2); }
+  .scope { margin-top: 2rem; max-width: 46rem; border-left: 3px solid var(--llms); padding: 0.2rem 0 0.2rem 1.1rem; }
+  .scope p { color: var(--ink-2); margin: 0 0 0.6rem; font-size: 0.97rem; }
+  .scope p:last-child { margin: 0; }
+  .bib { position: relative; margin-top: 1.25rem; }
+  .bib pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1.25rem 1.35rem; overflow-x: auto; font: 400 0.85rem/1.6 var(--mono); color: var(--ink); }
+  footer { border-top: 1px solid var(--rule); padding-block: 2rem 3rem; color: var(--ink-3); font-size: 0.88rem; display: grid; gap: 0.5rem; }
+  footer p { margin: 0; max-width: var(--measure); }
+
+  .katex { font-size: 1.06em; }
+
+  @media (max-width: 860px) {
+    .loop { grid-template-columns: minmax(0, 1fr); }
+    .loop > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+    .two, .prog, .nest { grid-template-columns: minmax(0, 1fr); }
+    .famlist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .famlist .grp { grid-column: 1 / -1; }
+  }
+  @media (max-width: 760px) {
+    header.hero { padding-block: 2.75rem 2rem; }
+    .thesis { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+    .heads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lanes, .stat-row, .downloads { grid-template-columns: minmax(0, 1fr); }
+    .lane { min-height: 0; }
+    .lane-body { max-height: 15rem; }
+    .derive .row { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="venue"><span class="badge">Preprint · 2026</span><span>UMass Amherst · Adobe Research</span></div>
+  <h1>Learning Compact State Abstractions for <em>LLM Agents</em></h1>
+  <div class="authors">
+    <ul>
+      <li><a href="https://yaswanthchittepu.github.io/">Yaswanth Chittepu</a><sup>1</sup></li>
+      <li>Raghavendra Addanki<sup>2</sup></li>
+      <li>Anup Rao<sup>2</sup></li>
+      <li>Branislav Kveton<sup>2</sup></li>
+      <li>Scott Niekum<sup>1</sup></li>
+    </ul>
+    <div class="affil"><sup>1</sup> University of Massachusetts Amherst &nbsp;·&nbsp; <sup>2</sup> Adobe Research</div>
+  </div>
+  <nav class="links" aria-label="Paper resources">
+    <!-- TODO: swap in the arXiv id once it is live -->
+    <span class="btn soon" aria-disabled="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>arXiv (coming soon)</span>
+    <a class="btn" href="#programs"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg>Learned programs</a>
+    <a class="btn" href="#data"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>Results data</a>
+    <a class="btn" href="#cite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 2.75h10v10.5H3z"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>BibTeX</a>
+  </nav>
+  <div class="thesis">
+    <div class="eq-big" aria-label="s t equals phi of s t minus 1, o t, a t minus 1">\(s_t = \phi(s_{t-1},\, o_t,\, a_{t-1})\)</div>
+    <p><strong>What does an LLM agent actually need to remember?</strong> Instead of feeding the agent its whole history, we learn a small Python program \(\phi\) that keeps a compact, readable state. It runs without any extra model calls, and the agent stays just as successful.</p>
+  </div>
+  <div class="heads">
+    <div class="head"><div class="val phi">−71%</div><div class="lab">policy input tokens, best ALFWorld family</div></div>
+    <div class="head"><div class="val phi">−57%</div><div class="lab">policy input tokens, best ScienceWorld family</div></div>
+    <div class="head"><div class="val phi">−95%</div><div class="lab">policy input tokens on long-horizon BabyAI</div></div>
+    <div class="head"><div class="val">+1.7 pp</div><div class="lab">success vs. full history, 95% CI [−1.8, +5.3]</div></div>
+  </div>
+</header>
+
+<section id="idea">
+  <div class="col">
+    <p class="eyebrow">The idea</p>
+    <h2>History is not state</h2>
+    <p class="lede">A ReAct-style agent appends every observation and action to its prompt. That is sufficient by construction, but most of it stops mattering: the rooms already searched, the drawer that was empty, the step that failed. We ask what the agent actually needs to carry forward, and learn a program that keeps only that.</p>
+    <details class="abstract">
+      <summary>Read the abstract</summary>
+      <p>LLM agents commonly use the full interaction history as a proxy for state, retaining all past observations and actions regardless of whether they remain relevant. We instead ask what information an agent actually needs to carry forward. We define agent state as a compact abstraction of interaction history that preserves the competence of a fixed reference agent, with the minimal such abstraction as the ideal. Because matching the reference agent's behavior is unnecessarily restrictive and difficult for black-box policies, we define sufficiency through task performance rather than behavior matching. We represent state abstractions as deterministic recursive programs and search over them using an LLM-guided genetic algorithm. Across ALFWorld and ScienceWorld, the learned abstractions preserve near-reference task success while reducing mean policy input by up to 71% and 57%, respectively. The resulting programs are directly inspectable, providing an explicit account of what information is retained, updated, and discarded during interaction.</p>
+    </details>
+  </div>
+
+  <div class="player card" id="player">
+    <div class="task">ALFWorld · Pick &amp; Place · task: <b>put a mug in desk</b></div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-h"><span class="t"><i style="background:var(--full)"></i>Full history</span><span class="eq">policy sees \(c_t = (o_1, a_1, \dots, o_t)\)</span></div>
+        <div class="lane-body hist" id="histBody" aria-live="polite"></div>
+        <div class="meter"><div class="row"><span>policy input</span><span id="fullTok">0 tok</span></div><div class="track"><div class="fillbar" id="fullBar" style="background:var(--full);width:0"></div></div></div>
+      </div>
+      <div class="lane">
+        <div class="lane-h"><span class="t"><i style="background:var(--phi)"></i>Learned state</span><span class="eq">policy sees \(s_t = \phi(s_{t-1}, o_t, a_{t-1})\)</span></div>
+        <div class="lane-body state" id="stateBody"></div>
+        <div class="meter"><div class="row"><span>policy input</span><span id="phiTok">0 tok</span></div><div class="track"><div class="fillbar" id="phiBar" style="background:var(--phi);width:0"></div></div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="iconbtn" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg></button>
+      <button class="iconbtn" id="resetBtn" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5v2.5h2.5"/></svg></button>
+      <input type="range" id="stepRange" min="0" max="8" value="0" aria-label="Episode step">
+      <span class="stepn" id="stepLabel">step 0 / 8</span>
+    </div>
+    <p class="muted" style="margin:0.9rem 0 0">An illustrative episode. The state fields follow the learned Pick &amp; Place program shown <a href="#programs">below</a>. Token counts are rough (about four characters per token) and leave out the agent's reasoning, which full history would also keep. \(\phi\) reads the new observation and action, updates its fields, and throws the raw text away: once the mug is found, the search frontier is cleared.</p>
+  </div>
+</section>
+
+<section id="method">
+  <div class="col">
+    <p class="eyebrow">Formulation</p>
+    <h2>Keep the agent competent, not identical</h2>
+    <p>The policy \(\pi\) is a fixed black-box LLM. The only thing we learn is the abstraction \(\phi\), which updates the state recursively, starting from \(s_0 = \varnothing\). The update has to be recursive: computing the state from the whole history would mean keeping the history.</p>
+  </div>
+  <figure class="card" style="margin:1.75rem 0 0;max-width:52rem">
+    <img src="media/recurrent-state.gif" alt="Animation: (a) the full-history agent's context grows by one observation and action every step; (b) the recursive agent passes each new observation through phi into the next state, drops the raw text, and the policy sees only the latest state." width="1200" height="675" loading="lazy" style="border-radius:8px">
+    <figcaption class="muted" style="margin-top:0.6rem">(a) A standard agent conditions on the growing context \(c_t\). (b) The abstracted agent folds each new action and observation into \(s_t\) with \(\phi\), drops the raw text, and the policy sees only \(s_t\).</figcaption>
+  </figure>
+  <div class="defn"><p>An <strong>agent state</strong> is a compact abstraction of the interaction history that preserves the performance of a reference agent acting on the full history. An <em>ideal</em> agent state is the minimal such abstraction.</p></div>
+
+  <div class="derive">
+    <div class="row">
+      <div class="key">Objective</div>
+      <div class="v"><div class="eqs">\[\max_{\phi}\; J(\pi\circ\phi) - \lambda\, T(\phi) \quad \text{s.t.}\quad J(\pi\circ\phi) \ge (1-\epsilon)\, J(\pi_{\text{full}}),\;\; T(\phi) < T(\phi_{\text{naive}})\]</div>
+        <span class="note">\(J\) is expected task success and \(T\) is mean policy input tokens. \(\pi\circ\phi\) is the agent that maintains \(s_t\) with \(\phi\) and acts with \(\pi(\cdot \mid s_t)\). \(\pi_{\text{full}}\) is the same policy conditioned on the full history, and \(\phi_{\text{naive}}\) is the starting program that simply concatenates history. The constraint stops the search from buying compactness with lost success (we use \(\epsilon = 0.10\)). \(\lambda\) then pushes toward smaller states among the feasible ones. Because \(\phi\) acts inside the interaction loop and is scored only by trajectory return, this has the structure of an RL problem in which the policy is frozen and the state representation is what gets learned.</span></div>
+    </div>
+    <div class="row">
+      <div class="key">Why not match behavior?</div>
+      <div class="v">
+        <span class="note">Here \(J(\cdot)\) is expected task success, \(\pi_{\text{full}}\) is the policy acting on the full history \(h_t\), and \(\pi\circ\phi\) is the same policy acting on the state \(s_t\) that \(\phi\) computes. Behavior matching would require the two agents to choose actions with nearly the same probabilities at every step. It measures the gap with the cumulative total-variation distance \(B(\phi)\), taken over the histories that \(\pi\circ\phi\) actually visits:</span>
+        <div class="eqs">\[B(\phi) = \sum_{t=1}^{H} \mathbb{E}_{h_t \sim d_t^{\pi\circ\phi}} \Big[ \mathrm{TV}\big( \pi_{\text{full}}(\cdot \mid h_t),\; \pi(\cdot \mid s_t) \big) \Big]\]</div>
+        <span class="note">Performance matching asks only that the success gap \(|J(\pi_{\text{full}}) - J(\pi\circ\phi)|\) be small. Our criterion asks only that success not drop, which constrains the signed gap \(J(\pi_{\text{full}}) - J(\pi\circ\phi)\). With a binary success signal at the end of a horizon-\(H\) episode, the three gaps are ordered:</span>
+        <div class="eqs">\[\underbrace{J(\pi_{\text{full}}) - J(\pi\circ\phi)}_{\text{ours (signed)}} \;\le\; \underbrace{\big|J(\pi_{\text{full}}) - J(\pi\circ\phi)\big|}_{\text{performance matching}} \;\le\; \underbrace{B(\phi)}_{\text{behavior matching}}\]</div>
+        <div class="nest">
+          <svg viewBox="0 0 260 180" role="img" aria-label="Nested sets: behavior matching inside performance matching inside the signed success criterion">
+            <rect x="4" y="4" width="252" height="172" rx="16" fill="var(--phi-wash)" stroke="var(--phi)" stroke-width="1.5"/>
+            <rect x="34" y="40" width="192" height="126" rx="13" fill="var(--surface)" stroke="var(--full)" stroke-width="1.2"/>
+            <rect x="64" y="76" width="132" height="80" rx="10" fill="var(--full-wash)" stroke="var(--full)" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <text x="130" y="25" text-anchor="middle" style="font:600 12px var(--sans);fill:var(--phi)">Ours: success may not drop</text>
+            <text x="130" y="61" text-anchor="middle" style="font:500 12px var(--sans);fill:var(--ink-2)">Performance matching</text>
+            <text x="130" y="112" text-anchor="middle" style="font:500 12px var(--sans);fill:var(--ink-2)">Behavior</text>
+            <text x="130" y="128" text-anchor="middle" style="font:500 12px var(--sans);fill:var(--ink-2)">matching</text>
+          </svg>
+          <div><span class="note">Many tasks have several successful trajectories, and a black-box LLM's action distribution is hard to match anyway. Because of this ordering, any \(\phi\) that satisfies a tolerance \(\delta\) under behavior matching also satisfies it under performance matching and under our criterion. So the feasible sets nest as in the diagram. Constraining only the <em>drop</em> in success gives the largest set, so it admits the most compact states. It also allows abstractions that change behavior or even improve success.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="key">Why programs?</div>
+      <div class="v" style="padding-top:0.45rem">
+        <ul class="why">
+          <li><b>Expressive.</b> \(\phi\) is a general-purpose program, so in principle it can implement any computable state update, using arbitrary control flow, data structures, libraries and tools.</li>
+          <li><b>Matches the job.</b> Keeping state is mostly structured bookkeeping: parse an observation, update a record, flip a flag, and drop the text once it has been absorbed. Machine-generated observations such as simulator text, HTML pages and API responses can be parsed directly.</li>
+          <li><b>Free at deployment.</b> A Python update adds no model calls per step. For free-form text, \(\phi\) could call a language model to extract what the state needs. That trades away some of the zero-inference cost for broader coverage.</li>
+          <li><b>Deterministic.</b> Once the raw history is discarded, a random error at one step would carry into every later state. All the programs in our experiments are deterministic, which removes that source of compounding error.</li>
+          <li><b>Readable.</b> Unlike the hidden state of a recurrent network, the learned state is a set of named variables with explicit update rules: a readable hypothesis about what information the agent needs.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="search">
+  <div class="col">
+    <p class="eyebrow">Search</p>
+    <h2>An LLM-guided genetic search over state programs</h2>
+    <p>The objective is non-differentiable and can only be measured by running the agent, so we search over programs with a genetic algorithm. Search starts from a single naive program that concatenates history. An LLM proposer writes each child, and a reflector compares rollouts with full-history references to point out what information the child lost.</p>
+  </div>
+  <div class="loop" id="loop">
+    <div><span class="stepno">1 · Select</span><h3>Tournament</h3><p>Pick one parent (mutation) or two (crossover, p = 0.5) from a population of 8.</p></div>
+    <div><span class="stepno">2 · Propose</span><h3>LLM writes a child \(\phi\)</h3><p>The proposer sees the parent code, parent rollouts, full-history rollouts and the reflector's feedback.</p></div>
+    <div><span class="stepno">3 · Evaluate</span><h3>Roll out the fixed agent</h3><p>Measure success and policy tokens on training tasks, then check feasibility.</p></div>
+    <div><span class="stepno">4 · Reflect &amp; repair</span><h3>Up to 3 repairs</h3><p>If infeasible, the reflector diagnoses what was dropped or mis-tracked and the proposer revises.</p></div>
+    <div><span class="stepno">5 · Insert</span><h3>Keep the best variant</h3><p>Only the highest-fitness program from the repair chain enters the population.</p></div>
+  </div>
+  <div class="loop-foot"><span>Fitness, rollouts and feedback are cached, so each candidate is evaluated once.</span><span>10 iterations (ALFWorld) · 5 (ScienceWorld)</span></div>
+  <div class="stat-row">
+    <div class="stat"><div class="lab">First program feasible</div><div class="val">2 / 10</div><p>task families. A single LLM-written program is usually not good enough.</p></div>
+    <div class="stat"><div class="lab">Improvements to the best</div><div class="val">26</div><p>across ten searches, all from mutation or crossover proposals.</p></div>
+    <div class="stat"><div class="lab">Needed repair</div><div class="val phi">16 / 26</div><p>improvements became feasible or better only after reflector-guided repair.</p></div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="col">
+    <p class="eyebrow">Result 1 · Held-out tasks</p>
+    <h2>Much smaller inputs, success near the reference</h2>
+    <p>Each task family gets its own \(\phi\), learned on training instances and evaluated on held-out ones. The policy is GPT-5.6 Luna in a ReAct scaffold. Baselines are a fixed LLM summarizer and <a href="https://arxiv.org/abs/2510.00615">ACON</a>, which learns compression guidelines. Both baselines call an LLM at run time to write summaries, and their token counts exclude those calls. \(\phi\) is plain Python.</p>
+  </div>
+  <div class="card" style="margin-top:1.5rem">
+    <div class="fig-head">
+      <div class="seg" role="group" aria-label="Domain" id="domSeg">
+        <button type="button" aria-pressed="true" data-v="ALFWorld">ALFWorld</button>
+        <button type="button" aria-pressed="false" data-v="ScienceWorld">ScienceWorld</button>
+      </div>
+      <div class="seg" role="group" aria-label="View" id="viewSeg">
+        <button type="button" aria-pressed="true" data-v="chart">Chart</button>
+        <button type="button" aria-pressed="false" data-v="table">Table</button>
+      </div>
+    </div>
+    <div class="legend" id="resLegend" style="margin-bottom:0.9rem"></div>
+    <div id="resChart" class="two"></div>
+    <div id="resTable" class="tablewrap" hidden></div>
+    <p class="muted" style="margin:1rem 0 0" id="resNote"></p>
+  </div>
+</section>
+
+<section id="horizon">
+  <div class="col">
+    <p class="eyebrow">Result 2 · Longer horizons</p>
+    <h2>Full history grows every step; the state levels off</h2>
+    <p>On BabyAI GoTo (3×3 rooms, 576-step cap), full history reaches 27.5k tokens per call by the step cap. \(\phi\) levels off at about 250 tokens from step 25 onward, tracking heading and position by dead reckoning and remembering where the target was last seen. Over a full episode that is 29× fewer input tokens, and the difference in success is not significant (exact McNemar, p = 0.18).</p>
+  </div>
+  <div class="two">
+    <div class="card">
+      <h3>BabyAI GoTo · tokens per policy call <span class="sub">(log scale)</span></h3>
+      <div class="legend" style="margin:0.5rem 0 0.75rem"><span><i style="background:var(--full)"></i>Full history</span><span><i style="background:var(--phi)"></i>\(\phi\)</span></div>
+      <div class="chart" id="babyChart"></div>
+    </div>
+    <div class="card">
+      <h3>Tokens added per step <span class="sub">(held-out slope)</span></h3>
+      <div class="legend" style="margin:0.5rem 0 0.75rem"><span><i style="background:var(--full)"></i>Full history</span><span><i style="background:var(--phi)"></i>\(\phi\)</span></div>
+      <div class="chart" id="growthChart"></div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:0.9rem">On ALFWorld and ScienceWorld, full history adds 24–36 tokens per step in every family. \(\phi\) adds far fewer, except on Two Objects and Forces, where the learned \(\phi\) is itself a bounded recent history.</p>
+</section>
+
+<section id="robust">
+  <div class="col">
+    <p class="eyebrow">Result 3 · Is it real?</p>
+    <h2>Three runs, unseen rooms, a different model</h2>
+    <p>LLM policies sample their responses, so one run can mislead. We re-ran \(\phi\), full history and a token-matched recent-history window three times on all 254 held-out instances.</p>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><div class="lab">\(\phi\) − full history</div><div class="val">+1.7 pp</div><p>95% CI [−1.8, +5.3]. No systematic difference, and the sign holds in every run (+0.4 to +3.5 pp).</p></div>
+    <div class="stat"><div class="lab">\(\phi\) − last-k window</div><div class="val phi">+10.0 pp</div><p>95% CI [+5.9, +13.9], with a window matched to \(\phi\)'s length. Up to +25.5 pp on Pick &amp; Place.</p></div>
+    <div class="stat"><div class="lab">Run-to-run std</div><div class="val">0.7 pp</div><p>The lowest of the three methods (full history 1.0, window 1.8).</p></div>
+  </div>
+  <div class="two">
+    <div class="card">
+      <h3>Success over three runs <span class="sub">(mean ± std)</span></h3>
+      <div class="legend" style="margin:0.5rem 0 0.75rem"><span><i style="background:var(--full)"></i>Full history</span><span><i style="background:var(--phi)"></i>\(\phi\)</span><span><i style="background:var(--llms)"></i>Last-k window</span></div>
+      <div class="chart" id="runsChart"></div>
+    </div>
+    <div class="card" style="display:grid;gap:1.2rem;align-content:start">
+      <div>
+        <h3>Unseen ALFWorld rooms</h3>
+        <table class="data"><thead><tr><th>Split</th><th>n</th><th>\(\phi\) − full</th><th>95% CI</th></tr></thead>
+        <tbody><tr><td>Seen</td><td>68</td><td>+1.5 pp</td><td>[−4.4, +7.4]</td></tr><tr><td>Unseen</td><td>134</td><td>−1.5 pp</td><td>[−7.5, +4.5]</td></tr></tbody></table>
+        <p class="muted" style="margin:0.5rem 0 0">\(\phi\) scores 0.81 on seen rooms and 0.86 on unseen ones: no sign of overfitting.</p>
+      </div>
+      <div>
+        <h3>Swap the policy: Qwen-3.5-397B</h3>
+        <p style="font-size:0.93rem;color:var(--ink-2);margin:0">We ran each \(\phi\) learned with GPT-5.6 Luna, unchanged, with Qwen-3.5-397B. The pooled ALFWorld difference from Qwen with full history is <span class="num">−1.5 pp</span> (95% CI [−5.9, +2.5], n = 202), with token reductions of up to 69%. Transfer is not guaranteed, because sufficiency is defined relative to a policy. When you switch agents, the intended use is to re-run the search.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="programs">
+  <div class="col">
+    <p class="eyebrow">Result 4 · What the state contains</p>
+    <h2>Each program is a readable hypothesis about what matters</h2>
+    <p>Across families, the programs turn raw text into persistent variables and discard observations once they have been absorbed. What they keep depends heavily on the task. ALFWorld programs recover navigation, search, object and transformation state. ScienceWorld programs also need entity resolution, relations, device settings and process variables. Where token savings were small, the search settled on a bounded recent history.</p>
+  </div>
+  <div class="prog">
+    <div class="famlist" id="famList" role="group" aria-label="Task family"></div>
+    <div class="card" style="min-width:0">
+      <h3 id="progTitle" style="font:500 1.35rem/1.2 var(--serif)"></h3>
+      <div class="progmeta" id="progMeta"></div>
+      <p id="progDesc" style="color:var(--ink-2);font-size:0.95rem"></p>
+      <div class="eyebrow" style="margin-bottom:0.5rem">Persistent information retained</div>
+      <div class="chips" id="progChips"></div>
+      <div class="codebox"><button class="copy" type="button" id="copyCode">Copy</button><pre><code id="progCode"></code></pre></div>
+      <p class="muted" style="margin:0.6rem 0 0">Excerpt of the final learned \(\phi\). Normalization and boilerplate are omitted.</p>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:2rem">
+    <div class="card">
+      <h3>Hide one field group from the policy <span class="sub">(change in success, 95% CI)</span></h3>
+      <div class="chart" id="maskChart" style="margin-top:0.75rem"></div>
+    </div>
+    <div class="col" style="align-self:center">
+      <p>To find out which fields the policy actually needs, we hide one group at a time. \(\phi\) keeps updating its full state, and only the policy's copy is masked. Seven of the eight groups matter, and every one of those confidence intervals excludes zero.</p>
+      <p>The agent can depend on fields it never mentions. On Clean &amp; Place, hiding the flags that record which objects are already clean drops success from <span class="num">0.73</span> to <span class="num">0.04</span>: the agent finds the object, then keeps cleaning it until it runs out of steps. Hiding the goal has no effect, because the task prompt already states it.</p>
+    </div>
+  </div>
+</section>
+
+<section id="data">
+  <div class="col">
+    <p class="eyebrow">Use the results</p>
+    <h2>Every number on this page, as CSV</h2>
+    <p>Each table is available for download so you can compare against it, re-plot it or check it. Success is the fraction of held-out episodes solved. Tokens are mean policy input tokens per step.</p>
+  </div>
+  <div class="downloads">
+    <a class="dl" href="data/main-results.csv" download><span class="f">main-results.csv</span><span class="d">Success and tokens for all 10 families × 4 methods, with held-out n.</span></a>
+    <a class="dl" href="data/three-run-success.csv" download><span class="f">three-run-success.csv</span><span class="d">Per-family mean ± std over three runs: \(\phi\), full history, last-k window.</span></a>
+    <a class="dl" href="data/token-growth.csv" download><span class="f">token-growth.csv</span><span class="d">Tokens added per step, full history vs. \(\phi\), including BabyAI.</span></a>
+    <a class="dl" href="data/babyai-tokens-per-call.csv" download><span class="f">babyai-tokens-per-call.csv</span><span class="d">Tokens per policy call across a 576-step BabyAI episode.</span></a>
+    <a class="dl" href="data/field-masking.csv" download><span class="f">field-masking.csv</span><span class="d">Success change when each field group is hidden, with 95% CIs.</span></a>
+    <a class="dl" href="data/search-cost.csv" download><span class="f">search-cost.csv</span><span class="d">Meta-LLM calls, tokens and rollouts per search, plus program size.</span></a>
+  </div>
+  <div class="scope">
+    <p><strong>Search cost.</strong> All ten searches together used 860 meta-LLM calls (17.7M tokens) and 5,948 environment rollouts. This is a one-time cost per task family, and the resulting program runs for free at deployment.</p>
+    <p><strong>Limits.</strong> We find compact, sufficient states within a restricted program class. We do not certify minimality. The achievable reduction varies a lot by family: Two Objects and Forces stay close to bounded histories, and Forces ends up slightly larger than full history.</p>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="col">
+    <p class="eyebrow">Citation</p>
+    <h2>BibTeX</h2>
+  </div>
+  <div class="bib"><button type="button" id="copyBib">Copy</button><pre id="bibText">@article{chittepu2026compact,
+  title   = {Learning Compact State Abstractions for {LLM} Agents},
+  author  = {Chittepu, Yaswanth and Addanki, Raghavendra and Rao, Anup
+             and Kveton, Branislav and Niekum, Scott},
+  journal = {arXiv preprint},
+  year    = {2026}
+}</pre></div>
+</section>
+
+<footer>
+  <p>Work done during an internship at Adobe Research. Correspondence: Yaswanth Chittepu, UMass Amherst.</p>
+  <p><a href="../">← Back to Yaswanth Chittepu's homepage</a></p>
+</footer>
+</div>
+
+<!-- Program excerpts (from the paper's appendix). Plain text, rendered into the explorer. -->
+<script type="text/plain" id="code-pick">m = re.search(r"\byou arrive at\s+(.+?)(?:\.|$)", ol)
+if m:
+    loc = norm(m.group(1))
+    focus = loc
+    add_receptacle(loc)
+    if held is None:
+        phase = "search"
+
+m = re.search(
+    r"\b(?:on|in)\s+the\s+([a-z][a-z0-9]*(?:\s+\d+)?)"
+    r"\s*,?\s*you see\s+(.*?)(?:\.|$)", ol,
+)
+if m:
+    view = norm(m.group(1))
+    contents = m.group(2)
+    mark_searched(view)
+
+    found = matching_target(contents)
+    if found and held is None:
+        objloc = view
+        phase = "pickup"
+        frontier = []
+
+frontier = [
+    x for x in dict.fromkeys(frontier)
+    if x not in searched and not is_destination(x)
+]</script>
+<script type="text/plain" id="code-light">loc = dict(new.get("loc", {}))
+cont = {k: list(v) for k, v in new.get("cont", {}).items()}
+opn = dict(new.get("open", {}))
+prop = dict(new.get("prop", {}))
+exam = dict(new.get("exam", {}))
+
+for x in ents(lo):
+    if re.search(r"\b" + re.escape(x) + r"\s+is closed\b", lo):
+        opn[x] = "closed"
+    elif re.search(r"\b" + re.escape(x) + r"\s+is open\b", lo):
+        opn[x] = "open"
+
+eff = re.search(
+    r"\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?("
+    + ent_re + r")", lo,
+)
+if eff:
+    prop[eff.group(2)] = eff.group(1)
+
+if len(loc) > 28:
+    keep = [
+        k for k in loc
+        if k == held or
+        (goal_obj and k.startswith(goal_obj + " "))
+    ]
+    keep += [k for k in loc if k not in keep]
+    loc = {k: loc[k] for k in keep[:28]}</script>
+<script type="text/plain" id="code-clean">m = re.search(r"\bclean\s+([a-z]+\s+\d+)\b", am)
+if m and not failure:
+    obj = m.group(1).lower()
+    if "you clean" in low_obs or "cleaned" in low_obs:
+        out["clean"][obj] = True
+
+m = re.search(
+    r"\b(?:move|put|place)\s+([a-z]+\s+\d+)\s+"
+    r"(?:to|in|on)\s+([a-z]+\s+\d+)", am,
+)
+if m and not failure:
+    obj, dst = m.group(1).lower(), m.group(2).lower()
+    out["held"] = None
+    out["items"][obj] = dst
+
+    if (
+        move_confirmed
+        and is_target
+        and is_destination
+        and (not requires_clean or is_clean)
+    ):
+        out["done"] = True
+
+if out.get("done"):
+    out["searched"] = [
+        p for p in out["searched"]
+        if p in keep_places
+    ]</script>
+<script type="text/plain" id="code-heat">m = re.search(
+    r"\b(?:heat|warm)\s+(?:some|a|an)\s+([a-z]+)",
+    gt,
+)
+if m:
+    target, cond = m.group(1), "hot"
+
+effects = (
+    ("hot",
+     r"\byou heat the ([a-z]+\s+\d+)\b",
+     r"\bheat\s+([a-z]+\s+\d+)\s+with\b"),
+    ("cold",
+     r"\byou (?:cool|chill) the ([a-z]+\s+\d+)\b",
+     r"\b(?:cool|chill)\s+([a-z]+\s+\d+)\s+with\b"),
+)
+
+for value, op, ap in effects:
+    m = re.search(op, lo)
+    if not m and not failed():
+        m = re.search(ap, la)
+
+    if m and is_target(m.group(1)):
+        oid = norm(m.group(1))
+        out["obj"] = oid
+        out["prop"][oid] = value
+        out["phase"] = "conditioned"
+
+out["prop"] = {
+    k: v for k, v in out["prop"].items()
+    if is_target(k)
+}</script>
+<script type="text/plain" id="code-cool">if not need:
+    for w, n in (
+        ("cool", "cool"), ("chill", "cool"),
+        ("clean", "clean"), ("wash", "clean"),
+        ("heat", "heat"), ("warm", "heat"),
+    ):
+        if re.search(r"\b" + w + r"\b", g):
+            need = n
+            break
+
+if target_id:
+    target_loc = seen.get(
+        target_id, out.get("target_loc", "")
+    )
+    status = statuses.get(
+        target_id, out.get("target_status", "")
+    )
+
+    if target_loc == "held" or held == target_id:
+        if need and status != need:
+            phase = "transform"
+        elif dest:
+            phase = "place"
+        else:
+            phase = "done"
+    elif target_loc:
+        phase = "acquire"
+    else:
+        phase = "search"
+
+if acquired or phase == "done":
+    out.pop("target_candidates", None)
+    out.pop("searched", None)
+    out.pop("source_map", None)</script>
+<script type="text/plain" id="code-hist">new_state = dict(state)
+history = list(state.get("history", []))
+
+entry = {
+    "a": event.get("last_action") or "",
+    "o": event.get("last_observation") or "",
+}
+
+history.append(entry)
+new_state["history"] = history[-40:]
+
+return new_state</script>
+<script type="text/plain" id="code-life">def remember_entity(surface, inspected=False):
+    surface = clean(surface).lower()
+    key = canonical(surface)
+    stage = lifecycle_stage(surface)
+
+    old_entity = out["entities"].get(key, {})
+    previous_stage = old_entity.get("s", "")
+
+    record = {
+        "s": stage,
+        "n": surface,
+        "l": out["loc"] or old_entity.get("l", "unknown"),
+        "is": old_entity.get("is", ""),
+    }
+
+    if previous_stage and previous_stage != stage:
+        record["is"] = ""
+
+    if inspected:
+        record["is"] = stage
+
+    out["entities"][key] = record</script>
+<script type="text/plain" id="code-class">for match in re.finditer(
+    r"flower pot\s+(\d+)\s*\(containing\s+([^)]*)\)",
+    obs, flags=re.I
+):
+    pot = "pot" + match.group(1)
+    contents = clean(match.group(2))
+    new["pots"][pot] = contents
+
+    if contents and contents.lower() not in {
+        "nothing", "empty"
+    }:
+        entity = resolve(contents)
+        new["ents"][entity.lower()] = {"loc": pot}
+
+if (
+    action_obj
+    and generic(action_obj)
+    and not generic(observed_obj)
+):
+    new["aliases"][action_obj.lower()] = observed_obj
+
+new["facts"] = new["facts"][-6:]
+new["milestones"] = new["milestones"][-10:]</script>
+<script type="text/plain" id="code-gen">m = re.search(r"connect (.+?) to (.+)", action, re.I)
+if m and (
+    "connect" in ol or
+    "connected" in ol or
+    "now" in ol
+):
+    edge = (
+        clean(m.group(1), 55).lower()
+        + ">"
+        + clean(m.group(2), 55).lower()
+    )
+    if edge not in con:
+        con.append(edge)
+
+pot_match = re.search(
+    r"(flower pot\s*\d+)", obs, re.I
+)
+if pot_match:
+    pot = clean(pot_match.group(1), 30).lower()
+
+    if "reproducing stage" in ol:
+        stage = "reproducing"
+    elif "flowering stage" in ol:
+        stage = "flowering"
+    elif "seedling" in ol:
+        stage = "seedling"
+    elif "dead" in ol:
+        stage = "dead"
+    else:
+        stage = None
+
+    if stage:
+        plants[pot] = stage</script>
+<script type="text/plain" id="code-baby"># Track heading from turn actions (0=N, 1=E, 2=S, 3=W).
+if action == "turn left":
+    heading = (heading - 1) % 4
+elif action == "turn right":
+    heading = (heading + 1) % 4
+
+# Dead reckoning: update position when a forward move succeeds.
+if action == "go forward" and not blocked:
+    if old_heading == 0:
+        y += 1
+    elif old_heading == 1:
+        x += 1
+    elif old_heading == 2:
+        y -= 1
+    else:
+        x -= 1
+
+# Remember where the target was seen, so it is not lost out of view.
+if target:
+    sightings = list(old.get("tg", []))
+    for line in obs.splitlines():
+        if label(line) != target:
+            continue
+        gx, gy, distance = local_position(line)
+        sightings.append([gx, gy, distance, heading])</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, { delimiters: [{left: "\\[", right: "\\]", display: true}, {left: "\\(", right: "\\)", display: false}], throwOnError: false });
+  }
+});
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c])); }
+
+/* ---------- shared tooltip ---------- */
+function attachTip(container) {
+  const tip = document.createElement("div");
+  tip.className = "tip";
+  container.appendChild(tip);
+  return {
+    show(html, x, y) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1; },
+    hide() { tip.style.opacity = 0; }
+  };
+}
+function svgPoint(svg, container, x, y) {
+  const r = svg.getBoundingClientRect(), c = container.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return [r.left - c.left + x * r.width / vb.width, r.top - c.top + y * r.height / vb.height];
+}
+
+/* ---------- 1. Episode player ---------- */
+(() => {
+  const o0 = "You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 1, a drawer 1, a drawer 2, a garbagecan 1, a shelf 1, and a shelf 2.";
+  const steps = [
+    { a: null, o: o0, s: { target: "mug", dest: "desk 1", phase: "search", loc: "start", held: null, frontier: ["bed 1", "drawer 1", "drawer 2", "garbagecan 1", "shelf 1", "shelf 2"], searched: [] } },
+    { a: "go to shelf 1", o: "You arrive at shelf 1. On the shelf 1, you see a pen 1.", s: { loc: "shelf 1", searched: ["shelf 1"], frontier: ["bed 1", "drawer 1", "drawer 2", "garbagecan 1", "shelf 2"] } },
+    { a: "go to shelf 2", o: "You arrive at shelf 2. On the shelf 2, you see nothing.", s: { loc: "shelf 2", searched: ["shelf 1", "shelf 2"], frontier: ["bed 1", "drawer 1", "drawer 2", "garbagecan 1"] } },
+    { a: "go to drawer 1", o: "You arrive at drawer 1. The drawer 1 is closed.", s: { loc: "drawer 1" } },
+    { a: "open drawer 1", o: "You open the drawer 1. The drawer 1 is open. In it, you see a cd 1.", s: { searched: ["shelf 1", "shelf 2", "drawer 1"], frontier: ["bed 1", "drawer 2", "garbagecan 1"] } },
+    { a: "go to bed 1", o: "You arrive at bed 1. On the bed 1, you see a mug 2, and a pillow 1.", s: { loc: "bed 1", objloc: "bed 1", phase: "pickup", searched: ["shelf 1", "shelf 2", "drawer 1", "bed 1"], frontier: [] } },
+    { a: "take mug 2 from bed 1", o: "You pick up the mug 2 from the bed 1.", s: { held: "mug 2", phase: "place" } },
+    { a: "go to desk 1", o: "You arrive at desk 1. On the desk 1, you see a laptop 1, and a pen 2.", s: { loc: "desk 1" } },
+    { a: "move mug 2 to desk 1", o: "You move the mug 2 to the desk 1.", s: { held: null, phase: "done" } },
+  ];
+  const order = ["target", "dest", "phase", "loc", "held", "objloc", "frontier", "searched"];
+  const states = []; let cur = {};
+  steps.forEach(st => { cur = { ...cur, ...st.s }; states.push(cur); });
+
+  const histBody = document.getElementById("histBody"), stateBody = document.getElementById("stateBody");
+  const range = document.getElementById("stepRange"), label = document.getElementById("stepLabel");
+  const playBtn = document.getElementById("playBtn");
+  const tok = s => Math.round(s.length / 4);
+  const fullTexts = []; let acc = "";
+  steps.forEach(st => { acc += (st.a ? "> " + st.a + "\n" : "") + st.o + "\n"; fullTexts.push(acc); });
+  const fmt = s => JSON.stringify(Object.fromEntries(order.filter(k => k in s).map(k => [k, s[k]])), null, 1).replace(/\n\s*/g, " ").replace(/^\{ /, "{").replace(/ \}$/, "}");
+  const maxTok = tok(fullTexts[fullTexts.length - 1]);
+
+  function fieldLine(k, v, prev) {
+    const changed = prev === undefined ? false : JSON.stringify(prev[k]) !== JSON.stringify(v);
+    const val = esc(JSON.stringify(v));
+    return `<span class="k">${k}:</span> ${changed ? `<span class="chg">${val}</span>` : val}`;
+  }
+  function render(i, animate) {
+    histBody.innerHTML = steps.slice(0, i + 1).map((st, j) =>
+      `<div class="turn${j === i && animate ? " new" : ""}">${st.a ? `<div class="a">&gt; ${esc(st.a)}</div>` : ""}<div>${esc(st.o)}</div></div>`).join("");
+    histBody.scrollTop = histBody.scrollHeight;
+    const s = states[i], prev = i > 0 ? states[i - 1] : undefined;
+    const incoming = `<div class="incoming"><b>φ reads</b> ${steps[i].a ? "a = “" + esc(steps[i].a) + "”, " : ""}o = “${esc(steps[i].o.length > 70 ? steps[i].o.slice(0, 70) + "…" : steps[i].o)}”, <b>then discards it.</b></div>`;
+    stateBody.innerHTML = incoming + "<pre>" + order.filter(k => k in s).map(k => fieldLine(k, s[k], prev)).join("\n") + "</pre>";
+    const ft = tok(fullTexts[i]), pt = tok(fmt(s));
+    document.getElementById("fullTok").textContent = "≈ " + ft + " tok";
+    document.getElementById("phiTok").textContent = "≈ " + pt + " tok";
+    document.getElementById("fullBar").style.width = (100 * ft / maxTok) + "%";
+    document.getElementById("phiBar").style.width = (100 * pt / maxTok) + "%";
+    range.value = i; label.textContent = `step ${i} / ${steps.length - 1}`;
+  }
+  let i = 0, timer = null;
+  const setPlay = on => {
+    playBtn.setAttribute("aria-label", on ? "Pause" : "Play");
+    playBtn.innerHTML = on ? '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>' : '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>';
+  };
+  function stop() { clearInterval(timer); timer = null; setPlay(false); }
+  function play() {
+    if (i >= steps.length - 1) { i = 0; render(0, true); }
+    setPlay(true);
+    timer = setInterval(() => { if (i >= steps.length - 1) { stop(); return; } i++; render(i, true); }, 1800);
+  }
+  playBtn.onclick = () => timer ? stop() : play();
+  document.getElementById("resetBtn").onclick = () => { stop(); i = 0; render(0, true); };
+  range.oninput = () => { stop(); i = +range.value; render(i, false); };
+  render(0, false);
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    let started = false;
+    new IntersectionObserver(es => { if (!started && es[0].isIntersecting) { started = true; play(); } }, { threshold: 0.5 }).observe(document.getElementById("player"));
+  }
+})();
+
+/* ---------- search loop highlight ---------- */
+(() => {
+  const cells = [...document.querySelectorAll("#loop > div")];
+  if (reduceMotion) return;
+  let k = 0;
+  setInterval(() => { cells.forEach((c, j) => c.classList.toggle("active", j === k)); k = (k + 1) % cells.length; }, 1600);
+})();
+
+/* ---------- 2. Main results ---------- */
+const METHODS = [
+  { key: "full", name: "Full history", color: "--full" },
+  { key: "phi", name: "Ours (φ)", color: "--phi" },
+  { key: "llms", name: "LLM Summarizer", color: "--llms" },
+  { key: "acon", name: "ACON", color: "--acon" },
+];
+const RES = {
+  ALFWorld: [
+    ["Pick & Place", 47, [1.00, 281], [0.96, 82], [0.94, 211], [1.00, 183]],
+    ["Look in Light", 19, [0.95, 296], [1.00, 247], [0.95, 207], [0.83, 200]],
+    ["Clean & Place", 46, [0.74, 519], [0.72, 245], [0.67, 245], [0.67, 207]],
+    ["Heat & Place", 27, [0.74, 555], [0.85, 172], [0.63, 256], [0.25, 201]],
+    ["Cool & Place", 34, [0.76, 561], [0.74, 167], [0.59, 252], [0.83, 216]],
+    ["Two Objects", 29, [0.90, 430], [0.86, 402], [0.83, 245], [0.42, 203]],
+  ],
+  ScienceWorld: [
+    ["Lifespan", 12, [1.00, 260], [0.92, 136], [0.92, 236], [0.83, 229]],
+    ["Forces", 12, [0.42, 394], [0.75, 412], [0.33, 265], [0.50, 208]],
+    ["Classification", 16, [0.50, 395], [0.44, 169], [0.50, 246], [0.38, 239]],
+    ["Genetics", 12, [0.67, 401], [0.83, 247], [0.58, 237], [0.58, 209]],
+  ],
+};
+const NOTES = {
+  ALFWorld: "φ stays close to the reference on all six families, with the largest cuts on Pick & Place, Heat & Place and Cool & Place (69–71%). Look in Light and Two Objects admit much smaller cuts. Compared with ACON, φ succeeds more often on 4 of 6 families. Compared with the fixed summarizer, it succeeds more often on all 6.",
+  ScienceWorld: "48% fewer tokens on Lifespan, 57% on Classification and 38% on Genetics, with comparable success. Forces is the exception: its φ is a 40-step history over a 40-step cap, so it is slightly larger than full history, and the success gap there reflects run-to-run noise (full history scores between 0.42 and 0.92 across runs).",
+};
+(() => {
+  const legend = document.getElementById("resLegend");
+  legend.innerHTML = METHODS.map(m => `<span><i style="background:var(${m.color})"></i>${m.name}</span>`).join("");
+  const chartBox = document.getElementById("resChart"), tableBox = document.getElementById("resTable");
+  let dom = "ALFWorld";
+
+  function panel(title, rows, idx, max, fmtv, ticks) {
+    const wrap = document.createElement("div"); wrap.className = "chart";
+    const h = document.createElement("h3"); h.innerHTML = title; h.style.marginBottom = "0.4rem"; wrap.appendChild(h);
+    const L = 112, R = 44, W = 460, bh = 6, gap = 2, grpH = METHODS.length * (bh + gap) + 14, top = 6;
+    const H = top + rows.length * grpH + 22;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title.replace(/<[^>]+>/g, "") }, wrap);
+    const x = v => L + (W - L - R) * v / max;
+    const g = el("g", { class: "grid" }, svg);
+    const ax = el("g", { class: "axis" }, svg);
+    ticks.forEach(t => { el("line", { x1: x(t), x2: x(t), y1: top - 2, y2: H - 20 }, g); const tx = el("text", { x: x(t), y: H - 6, "text-anchor": "middle" }, ax); tx.textContent = fmtv(t); });
+    const tip = attachTip(wrap);
+    rows.forEach((r, ri) => {
+      const y0 = top + ri * grpH + 4;
+      const lab = el("text", { x: 0, y: y0 + (METHODS.length * (bh + gap)) / 2 + 3, style: "font:500 12px var(--sans);fill:var(--ink)" }, svg); lab.textContent = r[0];
+      METHODS.forEach((m, mi) => {
+        const v = r[2 + mi][idx], y = y0 + mi * (bh + gap);
+        const w = Math.max(2, x(v) - L);
+        el("rect", { x: L, y, width: w, height: bh, rx: 2, fill: css(m.color), opacity: m.key === "phi" || m.key === "full" ? 1 : 0.85 }, svg);
+        if (m.key === "phi") { const t = el("text", { x: L + w + 5, y: y + bh, style: "font:500 10.5px var(--mono);fill:var(--ink)" }, svg); t.textContent = fmtv(v); }
+        const hit = el("rect", { x: L, y: y - 1, width: W - L, height: bh + gap, fill: "transparent" }, svg);
+        hit.addEventListener("mousemove", () => {
+          const full = r[2][idx]; const [px, py] = svgPoint(svg, wrap, L + w, y);
+          const extra = idx === 1 && m.key !== "full" ? ` · ${Math.round(100 * (1 - v / full))}% ${v > full ? "more" : "fewer"} than full`.replace(/-(\d+)% more/, "$1% more") : "";
+          tip.show(`<b>${r[0]}</b> · ${m.name}<br><span class="n">${fmtv(v)}</span>${extra}`, px, py);
+        });
+        hit.addEventListener("mouseleave", tip.hide);
+      });
+    });
+    el("line", { x1: L, x2: L, y1: top - 2, y2: H - 20, class: "base" }, svg);
+    return wrap;
+  }
+  function draw() {
+    const rows = RES[dom];
+    chartBox.innerHTML = "";
+    chartBox.appendChild(panel("Mean policy input tokens <span class='sub'>(lower is better)</span>", rows, 1, 600, v => String(Math.round(v)), [0, 200, 400, 600]));
+    chartBox.appendChild(panel("Held-out success <span class='sub'>(higher is better)</span>", rows, 0, 1, v => v.toFixed(2), [0, 0.25, 0.5, 0.75, 1]));
+    const best = (r, idx, hi) => { const vs = r.slice(2).map(c => c[idx]); return hi ? Math.max(...vs) : Math.min(...vs); };
+    tableBox.innerHTML = `<table class="data"><thead><tr><th>${dom} task</th><th>n</th>${METHODS.map(m => `<th class="${m.key === "phi" ? "ours" : ""}">${m.name}<br>succ.</th><th class="${m.key === "phi" ? "ours" : ""}">tok.</th>`).join("")}</tr></thead><tbody>` +
+      rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td>${METHODS.map((m, mi) => { const [s, t] = r[2 + mi]; const red = mi === 0 ? "" : ` <span class="red">(${t > r[2][1] ? "+" : "−"}${Math.abs(Math.round(100 * (1 - t / r[2][1])))}%)</span>`; const o = m.key === "phi" ? " ours" : ""; return `<td class="${s === best(r, 0, true) ? "best" : ""}${o}">${s.toFixed(2)}</td><td class="${t === best(r, 1, false) ? "best" : ""}${o}">${t}${red}</td>`; }).join("")}</tr>`).join("") +
+      `</tbody></table>`;
+    document.getElementById("resNote").textContent = NOTES[dom];
+  }
+  document.querySelectorAll("#domSeg button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#domSeg button").forEach(x => x.setAttribute("aria-pressed", x === b)); dom = b.dataset.v; draw();
+  });
+  document.querySelectorAll("#viewSeg button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#viewSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    const t = b.dataset.v === "table"; tableBox.hidden = !t; chartBox.hidden = t; document.getElementById("resLegend").hidden = t;
+  });
+  draw();
+})();
+
+/* ---------- 3. BabyAI log-scale line ---------- */
+(() => {
+  const box = document.getElementById("babyChart");
+  const pts = [[1, 32, 69], [10, 386, 180], [25, 1009, 230], [50, 2080, 250], [100, 4377, 254], [200, 9194, 255], [300, 13961, 262], [400, 18906, 268], [575, 27547, 265]];
+  const W = 460, H = 270, L = 46, R = 70, T = 10, B = 30;
+  const x = s => L + (W - L - R) * s / 580;
+  const lo = Math.log10(20), hi = Math.log10(40000);
+  const y = v => T + (H - T - B) * (1 - (Math.log10(v) - lo) / (hi - lo));
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Tokens per policy call over a BabyAI episode. Full history climbs to 27.5 thousand; phi levels off near 250." }, box);
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  [100, 1000, 10000].forEach(v => { el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v) }, g); const t = el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, ax); t.textContent = v >= 1000 ? v / 1000 + "k" : v; });
+  [0, 100, 200, 300, 400, 500].forEach(s => { const t = el("text", { x: x(s), y: H - 10, "text-anchor": "middle" }, ax); t.textContent = s; });
+  const xl = el("text", { x: W - R, y: H - 10, "text-anchor": "start", dx: 6 }, ax); xl.textContent = "step";
+  el("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, class: "base" }, svg);
+  const series = [[1, "--full", "Full history"], [2, "--phi", "φ"]];
+  const paths = series.map(([k, c]) => el("path", { d: pts.map((p, i) => (i ? "L" : "M") + x(p[0]) + " " + y(p[k])).join(" "), fill: "none", stroke: css(c), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg));
+  series.forEach(([k, c, n]) => { const last = pts[pts.length - 1]; const t = el("text", { x: x(last[0]) + 6, y: y(last[k]) + 4, style: "font:500 11px var(--mono);fill:var(--ink)" }, svg); t.textContent = k === 1 ? "27.5k" : "≈250"; });
+  const cross = el("line", { y1: T, y2: H - B, stroke: css("--ink-3"), "stroke-width": 1, "stroke-dasharray": "3 3", opacity: 0 }, svg);
+  const dots = series.map(([k, c]) => el("circle", { r: 4.5, fill: css(c), stroke: css("--surface"), "stroke-width": 2, opacity: 0 }, svg));
+  const tip = attachTip(box);
+  const hit = el("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", ev => {
+    const r = svg.getBoundingClientRect(); const sx = (ev.clientX - r.left) * W / r.width;
+    let best = pts[0]; pts.forEach(p => { if (Math.abs(x(p[0]) - sx) < Math.abs(x(best[0]) - sx)) best = p; });
+    cross.setAttribute("x1", x(best[0])); cross.setAttribute("x2", x(best[0])); cross.setAttribute("opacity", 1);
+    dots.forEach((d, i) => { d.setAttribute("cx", x(best[0])); d.setAttribute("cy", y(best[i + 1])); d.setAttribute("opacity", 1); });
+    const [px, py] = svgPoint(svg, box, x(best[0]), y(best[1]));
+    tip.show(`<b>step ${best[0]}</b><br>Full history <span class="n">${best[1].toLocaleString()}</span><br>φ <span class="n">${best[2]}</span>`, px, py);
+  });
+  hit.addEventListener("mouseleave", () => { tip.hide(); cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); });
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    paths.forEach(p => { const L2 = p.getTotalLength(); p.style.strokeDasharray = L2; p.style.strokeDashoffset = L2; });
+    new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { paths.forEach(p => { p.style.transition = "stroke-dashoffset 2.2s ease-out"; p.style.strokeDashoffset = 0; }); ob.disconnect(); } }, { threshold: 0.4 }).observe(box);
+  }
+})();
+
+/* ---------- generic paired horizontal bars ---------- */
+function pairedBars(box, rows, series, max, ticks, fmtv, aria) {
+  const W = 460, L = 112, R = 40, bh = 7, gap = 2, grpH = series.length * (bh + gap) + 10, T = 4;
+  const H = T + rows.length * grpH + 22;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": aria }, box);
+  const x = v => L + (W - L - R) * v / max;
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  ticks.forEach(t => { el("line", { x1: x(t), x2: x(t), y1: T, y2: H - 20 }, g); const tx = el("text", { x: x(t), y: H - 6, "text-anchor": "middle" }, ax); tx.textContent = fmtv(t); });
+  const tip = attachTip(box);
+  rows.forEach((r, ri) => {
+    const y0 = T + ri * grpH + 3;
+    const lab = el("text", { x: 0, y: y0 + series.length * (bh + gap) / 2 + 3, style: "font:500 12px var(--sans);fill:var(--ink)" }, svg); lab.textContent = r.name;
+    series.forEach((s, si) => {
+      const v = r.v[si], y = y0 + si * (bh + gap), w = Math.max(2, x(v) - L);
+      el("rect", { x: L, y, width: w, height: bh, rx: 2, fill: css(s.color) }, svg);
+      if (r.err) { const e = r.err[si]; el("line", { x1: x(Math.max(0, v - e)), x2: x(Math.min(max, v + e)), y1: y + bh / 2, y2: y + bh / 2, stroke: css("--ink"), "stroke-width": 1.2 }, svg); }
+      const hit = el("rect", { x: L, y: y - 1, width: W - L, height: bh + gap, fill: "transparent" }, svg);
+      hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, L + w, y); tip.show(`<b>${r.name}</b> · ${s.name}<br><span class="n">${fmtv(v)}${r.err ? " ± " + fmtv(r.err[si]) : ""}</span>`, px, py); });
+      hit.addEventListener("mouseleave", tip.hide);
+    });
+  });
+  el("line", { x1: L, x2: L, y1: T, y2: H - 20, class: "base" }, svg);
+}
+pairedBars(document.getElementById("growthChart"),
+  [["Pick & Place", 27.3, 1.8], ["Look in Light", 28.8, 12.8], ["Clean & Place", 28.0, 5.6], ["Heat & Place", 28.5, 4.1], ["Cool & Place", 28.7, 4.1], ["Two Objects", 27.6, 18.4], ["Lifespan", 35.9, 8.1], ["Forces", 31.4, 26.2], ["Classification", 23.8, 4.4], ["Genetics", 36.4, 7.2]].map(r => ({ name: r[0], v: [r[1], r[2]] })),
+  [{ name: "Full history", color: "--full" }, { name: "φ", color: "--phi" }], 40, [0, 10, 20, 30, 40], v => (+v).toFixed(1), "Tokens added to the policy input per step, full history versus phi, per task family");
+pairedBars(document.getElementById("runsChart"),
+  [["Pick & Place", .993, .012, .957, .021, .702, .021], ["Look in Light", .982, .030, 1.000, 0, .947, .053], ["Clean & Place", .696, .058, .732, .013, .703, .045], ["Heat & Place", .778, .037, .852, 0, .605, .093], ["Cool & Place", .745, .017, .725, .017, .608, .061], ["Two Objects", .920, .020, .885, .020, .908, .020], ["Lifespan", .861, .127, .917, 0, .889, .096], ["Forces", .639, .255, .694, .048, .694, .048], ["Classification", .438, .108, .458, .036, .417, .095], ["Genetics", .694, .048, .861, .048, .861, .048]].map(r => ({ name: r[0], v: [r[1], r[3], r[5]], err: [r[2], r[4], r[6]] })),
+  [{ name: "Full history", color: "--full" }, { name: "φ", color: "--phi" }, { name: "Last-k window", color: "--llms" }], 1, [0, 0.25, 0.5, 0.75, 1], v => (+v).toFixed(2), "Success over three runs per family for full history, phi and a token-matched window");
+
+/* ---------- 4. Field masking (diverging, with CI) ---------- */
+(() => {
+  const box = document.getElementById("maskChart");
+  const rows = [["Progress & control", 7, -36.1, -42.3, -29.7], ["Exploration memory", 5, -29.1, -35.6, -22.7], ["Recent observations", 4, -29.3, -36.6, -22.1], ["Object & container", 8, -15.5, -20.3, -10.6], ["Last action / result", 5, -10.0, -17.1, -2.9], ["Inventory", 7, -8.5, -12.8, -4.3], ["Current location", 8, -5.2, -9.7, -0.8], ["Target / goal", 8, 0.5, -3.3, 4.1]];
+  const W = 460, L = 140, R = 30, rh = 26, T = 4, H = T + rows.length * rh + 22;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Change in success when each field group is hidden. Progress and control: minus 36 points. Target or goal: no effect." }, box);
+  const x = v => L + (W - L - R) * (v + 45) / 50;
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  [-40, -30, -20, -10, 0].forEach(t => { el("line", { x1: x(t), x2: x(t), y1: T, y2: H - 20 }, g); const tx = el("text", { x: x(t), y: H - 6, "text-anchor": "middle" }, ax); tx.textContent = t === 0 ? "0" : t + " pp"; });
+  const tip = attachTip(box);
+  rows.forEach((r, i) => {
+    const y = T + i * rh + 6, bh = 12;
+    const lab = el("text", { x: 0, y: y + bh - 2, style: "font:500 12px var(--sans);fill:var(--ink)" }, svg); lab.textContent = r[0];
+    const neg = r[2] < 0, x0 = x(0), x1 = x(r[2]);
+    el("rect", { x: Math.min(x0, x1), y, width: Math.max(2, Math.abs(x1 - x0)), height: bh, rx: 2, fill: neg && r[4] < 0 ? css("--drop") : css("--full") }, svg);
+    el("line", { x1: x(r[3]), x2: x(r[4]), y1: y + bh / 2, y2: y + bh / 2, stroke: css("--ink"), "stroke-width": 1.2 }, svg);
+    [r[3], r[4]].forEach(v => el("line", { x1: x(v), x2: x(v), y1: y + 2, y2: y + bh - 2, stroke: css("--ink"), "stroke-width": 1.2 }, svg));
+    const hit = el("rect", { x: 0, y: y - 6, width: W, height: rh, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, x(r[2]), y); tip.show(`<b>Hide ${r[0].toLowerCase()}</b><br><span class="n">${r[2] > 0 ? "+" : ""}${r[2]} pp</span> [${r[3]}, ${r[4]}] · ${r[1]} families`, px, py); });
+    hit.addEventListener("mouseleave", tip.hide);
+  });
+  el("line", { x1: x(0), x2: x(0), y1: T, y2: H - 20, class: "base" }, svg);
+})();
+
+/* ---------- 5. Programs explorer ---------- */
+(() => {
+  const P = [
+    { grp: "ALFWorld", name: "Pick & Place", code: "pick", red: "−71%", loc: 278, f: 11, chips: ["current location", "target & destination", "held object", "search frontier", "searched receptacles", "task phase"], d: "Maintains a search frontier and turns observations about receptacles into persistent search state. Finding the target changes the phase and drops the exploratory state that is no longer needed." },
+    { grp: "ALFWorld", name: "Look in Light", code: "light", red: "−17%", loc: 174, f: 11, chips: ["object locations", "receptacle contents", "open/closed state", "device state", "examination results", "recent observations"], d: "A small world model of object locations, receptacle contents, container state and device properties. It caps these structures and prefers to keep goal-relevant objects." },
+    { grp: "ALFWorld", name: "Clean & Place", code: "clean", red: "−53%", loc: 297, f: 15, chips: ["location", "held object", "target locations", "cleanliness", "receptacle contents", "searched locations", "task completion"], d: "Tracks whether the target has become clean, along with its location and the search history. Once the task is complete, it aggressively prunes search state. Hiding the clean flags drops success from 0.73 to 0.04." },
+    { grp: "ALFWorld", name: "Heat & Place", code: "heat", red: "−69%", loc: 428, f: 18, chips: ["target identity & location", "required condition", "object property", "container state", "task phase"], d: "Parses the task to get the target and the required condition, then turns successful heating or cooling events into persistent object properties." },
+    { grp: "ALFWorld", name: "Cool & Place", code: "cool", red: "−70%", loc: 358, f: 18, chips: ["target identity & location", "required transformation", "container state", "searched locations", "task phase"], d: "Moves through search, acquire, transform and place phases. Once the target is in hand, it deletes candidate lists and the search map." },
+    { grp: "ALFWorld", name: "Two Objects", code: "hist", red: "−7%", loc: 10, f: 1, chips: ["bounded recent history (last 40 steps)"], d: "The search did not find a structured state here and settled on a bounded recent history. That matches the small token reduction." },
+    { grp: "ScienceWorld", name: "Lifespan", code: "life", red: "−48%", loc: 283, f: 10, chips: ["entity identity", "location", "developmental stage", "inspected stage", "inventory & progress"], d: "Canonicalizes entities across textual descriptions and tracks each one's developmental stage and location, plus whether that stage has actually been inspected." },
+    { grp: "ScienceWorld", name: "Forces", code: "hist", red: "+5%", loc: 18, f: 1, chips: ["bounded recent history (last 40 steps)"], d: "A 40-step history with a 40-step episode cap holds the same content as full history, so there is no reduction here." },
+    { grp: "ScienceWorld", name: "Classification", code: "class", red: "−57%", loc: 210, f: 12, chips: ["entities", "aliases", "flower-pot contents", "inventory", "object locations", "facts", "milestones"], d: "Builds a compact entity-relation model. It resolves generic references to concrete entities and keeps only a bounded number of facts and milestones." },
+    { grp: "ScienceWorld", name: "Genetics", code: "gen", red: "−38%", loc: 165, f: 15, chips: ["object locations", "inventory", "device states", "connections", "plant stages", "failed actions"], d: "Keeps relational and process state: which objects are wired together, device settings, and each plant's developmental stage." },
+    { grp: "Long horizon", name: "BabyAI GoTo", code: "baby", red: "−95%", loc: null, f: null, chips: ["heading", "position (dead reckoning)", "target sightings", "observed doors", "recent failed moves"], d: "A compact spatial state. It tracks heading and position from the agent's own actions and remembers where the target was last seen, so the target is not lost when it leaves view." },
+  ];
+  const list = document.getElementById("famList");
+  let lastGrp = null;
+  P.forEach((p, i) => {
+    if (p.grp !== lastGrp) { const d = document.createElement("div"); d.className = "grp"; d.textContent = p.grp; list.appendChild(d); lastGrp = p.grp; }
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", i === 0);
+    b.innerHTML = `<span>${p.name}</span><span class="r">${p.red}</span>`;
+    b.onclick = () => { list.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); show(p); };
+    list.appendChild(b);
+  });
+  const hl = src => esc(src)
+    .replace(/(#[^\n]*)/g, '<span class="tok-com">$1</span>')
+    .replace(/(r?"(?:[^"\\\n]|\\.)*")/g, '<span class="tok-str">$1</span>')
+    .replace(/\b(if|elif|else|for|in|not|and|or|return|def|is|None|True|False)\b(?![^<]*<\/span>)/g, '<span class="tok-kw">$1</span>');
+  function show(p) {
+    document.getElementById("progTitle").textContent = p.grp + " · " + p.name;
+    document.getElementById("progMeta").innerHTML = `<span class="pill blue">${p.red} policy tokens</span>` + (p.loc ? `<span class="pill">${p.loc} lines</span><span class="pill">${p.f} state field${p.f > 1 ? "s" : ""}</span>` : "");
+    document.getElementById("progDesc").textContent = p.d;
+    document.getElementById("progChips").innerHTML = p.chips.map(c => `<span>${esc(c)}</span>`).join("");
+    document.getElementById("progCode").innerHTML = hl(document.getElementById("code-" + p.code).textContent);
+  }
+  show(P[0]);
+  const copy = (btn, getText) => btn.onclick = async () => { try { await navigator.clipboard.writeText(getText()); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Select & copy"; } setTimeout(() => btn.textContent = "Copy", 1500); };
+  copy(document.getElementById("copyCode"), () => document.getElementById("progCode").textContent);
+  copy(document.getElementById("copyBib"), () => document.getElementById("bibText").textContent);
+})();
+</script>
+</body>
+</html>

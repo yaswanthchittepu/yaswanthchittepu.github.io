@@ -1,0 +1,12 @@
+task_family,meta_llm_calls,meta_llm_tokens,rollouts,program_loc,state_fields
+Pick & Place,126,2.0M,768,278,11
+Look in Light,74,1.2M,456,174,11
+Clean & Place,148,3.8M,888,297,15
+Heat & Place,139,3.4M,828,428,18
+Cool & Place,146,3.6M,888,358,18
+Two Objects,80,1.5M,492,10,1
+Lifespan,33,0.4M,408,283,10
+Forces,43,0.7M,504,18,1
+Classification,36,0.7M,608,210,12
+Genetics,35,0.5M,108,165,15
+BabyAI GoTo,52,8.6M,324,,

@@ -1,0 +1,12 @@
+task_family,full_history_tokens_added_per_step,phi_tokens_added_per_step
+Pick & Place,27.3,1.8
+Look in Light,28.8,12.8
+Clean & Place,28.0,5.6
+Heat & Place,28.5,4.1
+Cool & Place,28.7,4.1
+Two Objects,27.6,18.4
+Lifespan,35.9,8.1
+Forces,31.4,26.2
+Classification,23.8,4.4
+Genetics,36.4,7.2
+BabyAI GoTo,48.5,0.06

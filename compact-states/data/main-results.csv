@@ -1,0 +1,41 @@
+domain,task_family,heldout_n,method,success,mean_policy_input_tokens,token_reduction_vs_full
+ALFWorld,Pick & Place,47,Full history,1.00,281,0%
+ALFWorld,Pick & Place,47,Ours (phi),0.96,82,71%
+ALFWorld,Pick & Place,47,LLM Summarizer,0.94,211,25%
+ALFWorld,Pick & Place,47,ACON,1.00,183,35%
+ALFWorld,Look in Light,19,Full history,0.95,296,0%
+ALFWorld,Look in Light,19,Ours (phi),1.00,247,17%
+ALFWorld,Look in Light,19,LLM Summarizer,0.95,207,30%
+ALFWorld,Look in Light,19,ACON,0.83,200,32%
+ALFWorld,Clean & Place,46,Full history,0.74,519,0%
+ALFWorld,Clean & Place,46,Ours (phi),0.72,245,53%
+ALFWorld,Clean & Place,46,LLM Summarizer,0.67,245,53%
+ALFWorld,Clean & Place,46,ACON,0.67,207,60%
+ALFWorld,Heat & Place,27,Full history,0.74,555,0%
+ALFWorld,Heat & Place,27,Ours (phi),0.85,172,69%
+ALFWorld,Heat & Place,27,LLM Summarizer,0.63,256,54%
+ALFWorld,Heat & Place,27,ACON,0.25,201,64%
+ALFWorld,Cool & Place,34,Full history,0.76,561,0%
+ALFWorld,Cool & Place,34,Ours (phi),0.74,167,70%
+ALFWorld,Cool & Place,34,LLM Summarizer,0.59,252,55%
+ALFWorld,Cool & Place,34,ACON,0.83,216,61%
+ALFWorld,Two Objects,29,Full history,0.90,430,0%
+ALFWorld,Two Objects,29,Ours (phi),0.86,402,7%
+ALFWorld,Two Objects,29,LLM Summarizer,0.83,245,43%
+ALFWorld,Two Objects,29,ACON,0.42,203,53%
+ScienceWorld,Lifespan,12,Full history,1.00,260,0%
+ScienceWorld,Lifespan,12,Ours (phi),0.92,136,48%
+ScienceWorld,Lifespan,12,LLM Summarizer,0.92,236,9%
+ScienceWorld,Lifespan,12,ACON,0.83,229,12%
+ScienceWorld,Forces,12,Full history,0.42,394,0%
+ScienceWorld,Forces,12,Ours (phi),0.75,412,-5%
+ScienceWorld,Forces,12,LLM Summarizer,0.33,265,33%
+ScienceWorld,Forces,12,ACON,0.50,208,47%
+ScienceWorld,Classification,16,Full history,0.50,395,0%
+ScienceWorld,Classification,16,Ours (phi),0.44,169,57%
+ScienceWorld,Classification,16,LLM Summarizer,0.50,246,38%
+ScienceWorld,Classification,16,ACON,0.38,239,39%
+ScienceWorld,Genetics,12,Full history,0.67,401,0%
+ScienceWorld,Genetics,12,Ours (phi),0.83,247,38%
+ScienceWorld,Genetics,12,LLM Summarizer,0.58,237,41%
+ScienceWorld,Genetics,12,ACON,0.58,209,48%

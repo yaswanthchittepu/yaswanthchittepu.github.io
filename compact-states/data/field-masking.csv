@@ -1,0 +1,9 @@
+hidden_field_group,families,change_in_success_pp,ci95_low,ci95_high
+Progress & control,7,-36.1,-42.3,-29.7
+Exploration memory,5,-29.1,-35.6,-22.7
+Recent observations,4,-29.3,-36.6,-22.1
+Object & container knowledge,8,-15.5,-20.3,-10.6
+Last action / result,5,-10.0,-17.1,-2.9
+Inventory,7,-8.5,-12.8,-4.3
+Current location,8,-5.2,-9.7,-0.8
+Target / goal,8,0.5,-3.3,4.1
