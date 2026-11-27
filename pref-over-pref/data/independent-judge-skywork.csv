@@ -1,0 +1,7 @@
+method,win_rate_vs_vanilla_skywork_reward_v2_llama_3.1_8b
+Vanilla DPO,
+DPO-margin-1,59.44
+DPO-margin-gt,62.79
+DPO-margin-gt-scaled,57.64
+DPO-PoP-Iter,59.29
+DPO-PoP-Random,64.25

@@ -1,0 +1,7 @@
+method,test_acc,pearson,spearman,rewardbench_chat,rewardbench_chat_hard,rewardbench_safety,rewardbench_reasoning,rewardbench_overall,ultrarm_win_rate_vs_vanilla,ultrarm_median_adv,alpacaeval2_lc_win_rate,alpacaeval2_win_rate,alpacaeval2_avg_len
+Vanilla DPO,69.0,0.3151,0.3244,73.46,63.6,57.03,76.69,71.59,,,10.38,10.56,1869
+DPO-margin-1,69.0,0.3161,0.3243,71.23,62.94,57.16,77.07,71.39,55,0.2813,11.07,11.06,1864
+DPO-margin-gt,70.0,0.3791,0.3715,79.05,65.79,60.95,76.84,73.67,59,0.5,11.23,11.3,1825
+DPO-margin-gt-scaled,71.0,0.3633,0.3669,76.26,62.28,62.43,76.11,72.96,52,0.0938,10.95,11.43,1881
+DPO-PoP-Iter,82.0,0.2183,0.3868,86.59,61.84,72.03,72.05,75.41,56,0.3496,12.89,13.42,2004
+DPO-PoP-Random,71.0,0.3962,0.3871,81.56,66.89,68.51,76.95,76.25,63,0.75,14.62,14.78,1909

@@ -1,0 +1,15 @@
+method,k,pearson,spearman,test_acc,ultrarm_median_adv,ultrarm_win_rate_vs_vanilla
+Vanilla DPO,,0.145,0.1708,64,,
+DPO-margin-1,,0.1374,0.1609,64,0.25,56
+DPO-margin-gt,,0.1855,0.2091,65,0.4844,60
+DPO-margin-gt-scaled,,0.1441,0.1656,64,0.0313,51
+DPO-PoP-Iter,1,0.2229,0.2463,67,0.2813,55
+DPO-PoP-Iter,2,0.2193,0.2429,67,1.125,68
+DPO-PoP-Iter,4,0.2127,0.2325,65,1.7813,77
+DPO-PoP-Iter,8,0.2183,0.2268,64,1.7188,75
+DPO-PoP-Iter,16,0.2223,0.2236,63,1.4629,69
+DPO-PoP-Random,1,0.2386,0.2614,67,0.4688,57
+DPO-PoP-Random,2,0.2403,0.2638,66,1.25,71
+DPO-PoP-Random,4,0.2362,0.2556,66,1.7969,77
+DPO-PoP-Random,8,0.2322,0.2454,65,1.8711,77
+DPO-PoP-Random,16,0.2265,0.2354,66,1.5547,72

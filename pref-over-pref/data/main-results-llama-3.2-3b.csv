@@ -1,0 +1,12 @@
+model,pop_labels,method,test_acc,test_acc_std,pearson,pearson_std,spearman,spearman_std,rewardbench_chat,rewardbench_chat_std,rewardbench_chat_hard,rewardbench_chat_hard_std,rewardbench_safety,rewardbench_safety_std,rewardbench_reasoning,rewardbench_reasoning_std,rewardbench_overall,rewardbench_overall_std,ultrarm_win_rate_vs_vanilla,ultrarm_win_rate_std,ultrarm_median_adv,ultrarm_median_adv_std,alpacaeval2_lc_win_rate,alpacaeval2_lc_std,alpacaeval2_win_rate,alpacaeval2_win_rate_std,alpacaeval2_avg_len,alpacaeval2_avg_len_std
+Llama-3.2-3B,dataset scores,Vanilla DPO,71.15,0.18,0.294,0.004,0.3003,0.004,75.65,0.34,64.51,0.51,71.49,0.17,75.85,0.46,75.46,0.21,,,,,11.74,0.74,11.37,0.69,1800,17
+Llama-3.2-3B,dataset scores,DPO-margin-1,71.18,0.28,0.2929,0.004,0.2984,0.005,76.86,0.54,64.14,0.21,71.19,0.86,77.03,0.23,75.78,0.29,54.9,0.34,0.227,0.02,11.74,1.04,11.51,1.04,1823,29
+Llama-3.2-3B,dataset scores,DPO-margin-gt,71.85,0.34,0.3427,0.003,0.3451,0.003,80.35,0.38,63.27,0.21,75.7,0.31,78.05,0.47,77.45,0.25,61.3,1.15,0.586,0.058,12.4,0.71,12.17,0.58,1915,42
+Llama-3.2-3B,dataset scores,DPO-margin-gt-scaled,72.05,0.16,0.3381,0.004,0.3453,0.003,80.87,0.55,64.11,0.53,75.47,0.46,76.33,0.27,77.13,0.29,53.7,0.64,0.16,0.028,10.99,0.79,10.97,0.71,1836,19
+Llama-3.2-3B,dataset scores,DPO-PoP-Iter,79.97,0.41,0.2449,0.002,0.3656,0.001,87.71,0.53,59.61,0.5,81.28,0.62,69.83,1.35,76.73,0.24,57.8,0.88,0.389,0.045,12.3,0.7,12.26,0.62,1919,50
+Llama-3.2-3B,dataset scores,DPO-PoP-Random,71.09,0.21,0.3639,0.002,0.3685,0.001,82.73,0.8,62.54,0.63,81.94,1.07,76.44,0.69,78.87,0.25,62.4,1.12,0.675,0.051,14.24,1.06,13.69,1.02,1846,20
+Llama-3.2-3B,GPT-4.1 (5k preferences),Vanilla DPO,62.84,0.17,0.1171,0.001,0.1435,0.001,64.25,1.11,62.24,0.53,64.05,0.55,80.9,0.76,73.05,0.56,,,,,7.66,0.98,6.38,0.69,1455,27
+Llama-3.2-3B,GPT-4.1 (5k preferences),DPO-margin-1,61.48,0.4,0.1035,0.002,0.1276,0.003,61.87,0.75,63.38,0.59,63.67,0.38,83.0,0.14,73.49,0.17,53.1,1.1,0.138,0.058,8.37,0.81,6.93,0.65,1476,17
+Llama-3.2-3B,GPT-4.1 (5k preferences),DPO-margin-gt,61.33,0.25,0.1045,0.003,0.1243,0.004,61.08,0.26,63.85,0.77,63.74,0.34,84.01,0.53,73.77,0.28,56.9,1.5,0.347,0.095,10.4,1.09,8.68,0.87,1518,31
+Llama-3.2-3B,GPT-4.1 (5k preferences),DPO-margin-gt-scaled,64.02,0.1,0.1505,0.002,0.1727,0.003,67.83,1.05,62.21,0.35,64.89,0.75,80.32,0.73,73.51,0.54,50.7,1.8,0.044,0.034,8.09,0.64,6.7,0.47,1469,24
+Llama-3.2-3B,GPT-4.1 (5k preferences),DPO-PoP-Random,62.98,0.05,0.1408,0.001,0.1645,0.001,58.1,0.88,63.6,0.51,62.48,0.64,85.19,0.44,73.57,0.36,62.2,1.8,0.741,0.113,11.07,1.2,9.39,1.19,1580,29

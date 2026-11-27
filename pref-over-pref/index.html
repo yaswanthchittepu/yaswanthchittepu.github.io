@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preference over Preferences</title>
+<meta name="description" content="Adaptive Margin RLHF via Preference over Preferences (TMLR 2026). Annotators say which of two preferences is stronger; DPO-PoP turns those binary judgments into per-example margins, with no numerical scores needed.">
+<meta property="og:title" content="Adaptive Margin RLHF via Preference over Preferences">
+<meta property="og:description" content="Ask which of two preferences is stronger, then use the weaker one's margin as a lower bound for the stronger. DPO-PoP improves win rates over margin baselines, including ones that see dataset scores.">
+<meta property="og:image" content="https://yaswanthchittepu.github.io/pref-over-pref/media/pop-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root {
+    --ground: #F6F7FA; --surface: #FFFFFF; --ink: #141827; --ink-2: #4A5068; --ink-3: #6E7489; --rule: #DDE1EA; --code-bg: #EEF0F5;
+    --ours: #1D5FB4; --ours-wash: rgba(29, 95, 180, 0.10);
+    --iter: #B57A00; --iter-wash: rgba(181, 122, 0, 0.12);
+    --base: #8A90A3; --base-wash: rgba(138, 144, 163, 0.16);
+    --ok: #1F7A4D; --ok-wash: rgba(31, 122, 77, 0.11);
+    --bad: #B8324A; --bad-wash: rgba(184, 50, 74, 0.10);
+    --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --measure: 42rem; --wide: 66rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3; --rule: #2A3042; --code-bg: #1C2130;
+      --ours: #7AA8F2; --ours-wash: rgba(122, 168, 242, 0.14); --iter: #E7B53C; --iter-wash: rgba(231, 181, 60, 0.14);
+      --base: #7C8399; --base-wash: rgba(124, 131, 153, 0.18);
+      --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12); --bad: #F0808F; --bad-wash: rgba(240, 128, 143, 0.12);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #10131C; --surface: #171B27; --ink: #E7EAF2; --ink-2: #A9B0C4; --ink-3: #868DA3; --rule: #2A3042; --code-bg: #1C2130;
+    --ours: #7AA8F2; --ours-wash: rgba(122, 168, 242, 0.14); --iter: #E7B53C; --iter-wash: rgba(231, 181, 60, 0.14);
+    --base: #7C8399; --base-wash: rgba(124, 131, 153, 0.18);
+    --ok: #5CC593; --ok-wash: rgba(92, 197, 147, 0.12); --bad: #F0808F; --bad-wash: rgba(240, 128, 143, 0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 400 1.0625rem/1.65 var(--sans); padding-inline: 16px; }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--ours); text-underline-offset: 0.18em; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--ours); outline-offset: 3px; border-radius: 3px; }
+  .wrap { max-width: var(--wide); margin-inline: auto; }
+  .col { max-width: var(--measure); }
+  code { font: 400 0.88em var(--mono); background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+  /* hero */
+  header.hero { padding-block: 4.5rem 3rem; display: grid; gap: 1.5rem; }
+  .venue { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; font: 500 0.8rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .venue .badge { display: inline-flex; padding: 0.5rem 0.8rem; border-radius: 999px; background: var(--ours-wash); color: var(--ours); border: 1px solid currentColor; }
+  h1 { font: 500 clamp(2.1rem, 5vw, 3.35rem)/1.08 var(--serif); letter-spacing: -0.015em; margin: 0; max-width: 22ch; text-wrap: balance; }
+  h1 em { font-style: italic; }
+  .authors { display: grid; gap: 0.35rem; font-size: 1rem; }
+  .authors ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+  .authors li { white-space: nowrap; }
+  .authors sup, .affil sup { font: 500 0.7em var(--mono); color: var(--ink-3); margin-left: 1px; }
+  .affil { color: var(--ink-2); font-size: 0.92rem; }
+  .links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; font: 500 0.92rem/1 var(--sans); padding: 0.65rem 1rem; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); text-decoration: none; cursor: pointer; }
+  .btn:hover { border-color: var(--ink-3); text-decoration: none; }
+  .btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+  .btn svg { width: 1rem; height: 1rem; flex: none; }
+  .thesis { margin-top: 1.5rem; border-top: 1px solid var(--rule); padding-top: 2.25rem; }
+  .thesis p { margin: 0; font: 400 clamp(1.25rem, 2.6vw, 1.6rem)/1.4 var(--serif); color: var(--ink-2); max-width: 46rem; }
+  .thesis p strong { color: var(--ink); font-weight: 500; }
+  .heads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0.5rem; }
+  .head { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1rem 1.1rem; }
+  .head .val { font: 500 1.9rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+  .head .val.ours { color: var(--ours); } .head .val.iter { color: var(--iter); }
+  .head .lab { font-size: 0.88rem; color: var(--ink-2); margin-top: 0.35rem; line-height: 1.4; }
+
+  /* sections */
+  section { padding-block: 3.25rem; border-top: 1px solid var(--rule); }
+  .eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 0.9rem; }
+  h2 { font: 500 clamp(1.6rem, 3.4vw, 2.15rem)/1.15 var(--serif); letter-spacing: -0.01em; margin: 0 0 1.1rem; text-wrap: balance; max-width: 30ch; }
+  h3 { font: 600 1.02rem/1.35 var(--sans); margin: 0 0 0.4rem; }
+  p { margin: 0 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink-2); }
+  .muted { color: var(--ink-3); font-size: 0.88rem; }
+  details.abstract summary { cursor: pointer; font: 500 0.92rem var(--sans); color: var(--ink-2); list-style: none; display: inline-flex; gap: 0.4rem; }
+  details.abstract summary::-webkit-details-marker { display: none; }
+  details.abstract summary::before { content: "+"; font-family: var(--mono); color: var(--ink-3); }
+  details.abstract[open] summary::before { content: "−"; }
+  details.abstract p { margin-top: 0.9rem; color: var(--ink-2); font-size: 0.98rem; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: clamp(1rem, 2.5vw, 1.5rem); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--surface); gap: 2px; }
+  .seg button { font: 500 0.86rem/1 var(--sans); color: var(--ink-2); background: transparent; border: 0; border-radius: 999px; padding: 0.55rem 0.9rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+  .fig-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .fig-head .segs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  figure { margin: 0; }
+  figcaption { font-size: 0.9rem; color: var(--ink-3); margin-top: 0.7rem; max-width: 50rem; }
+
+  /* PoP playground */
+  .play { margin-top: 2rem; }
+  .prefs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.75rem; align-items: stretch; }
+  .pref { border: 1px solid var(--rule); border-radius: 12px; background: var(--ground); padding: 1rem; display: grid; gap: 0.7rem; transition: border-color 0.3s, background 0.3s; }
+  .pref.strong { border-color: var(--ours); background: var(--ours-wash); }
+  .pref .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+  .pref .ph .t { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .pref.strong .ph .t { color: var(--ours); }
+  .pref .ph .role { font: 500 0.72rem/1 var(--mono); color: var(--ink-3); }
+  .pref .prompt { font: 500 0.98rem/1.35 var(--sans); }
+  .pref .resp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; font-size: 0.85rem; }
+  .pref .resp div { transition: border-color 0.2s; border: 1px solid var(--rule); border-radius: 8px; padding: 0.45rem 0.6rem; background: var(--surface); color: var(--ink-2); }
+  .pref .resp b { display: block; font: 500 0.66rem/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.2rem; }
+  .pref .resp .w b { color: var(--ok); } .pref .resp .l b { color: var(--bad); }
+  .pref svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .pref svg text { font: 400 11px var(--mono); fill: var(--ink-3); }
+  .sl { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr) 2.6rem; gap: 0.5rem; align-items: center; font: 400 0.8rem var(--mono); color: var(--ink-2); }
+  .sl input { width: 100%; accent-color: var(--ink-2); }
+  .sl output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .vs { display: grid; place-items: center; align-content: center; gap: 0.5rem; }
+  .vs .sym { font: 400 2rem/1 var(--serif); color: var(--ink-2); }
+  .readout { margin-top: 1rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+  .readout > div { border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); padding: 0.85rem 1rem; }
+  .readout .k { font: 500 0.68rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .readout .v { font: 500 1.45rem/1.2 var(--mono); font-variant-numeric: tabular-nums; margin-top: 0.3rem; }
+  .readout .s { font-size: 0.84rem; color: var(--ink-2); margin-top: 0.25rem; }
+  .gbar { height: 0.5rem; border-radius: 999px; background: var(--rule); margin-top: 0.5rem; overflow: hidden; }
+  .gbar i { display: block; height: 100%; background: var(--ours); border-radius: 999px; transition: width 0.2s; }
+  .verdict { margin-top: 0.9rem; font-size: 0.95rem; color: var(--ink-2); min-height: 3rem; }
+  .verdict b { color: var(--ink); }
+
+  /* method */
+  .derive { display: grid; gap: 1rem; margin-top: 1.5rem; }
+  .derive .row { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.25rem; align-items: baseline; padding: 1.1rem 1.25rem; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); }
+  .derive .row.ours { border-color: var(--ours); background: var(--ours-wash); }
+  .derive .tag { font: 500 0.7rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .derive .row.ours .tag { color: var(--ours); }
+  .derive .body { min-width: 0; overflow-x: auto; }
+  .derive .body p { font-size: 0.92rem; color: var(--ink-2); margin: 0.2rem 0 0; }
+  .derive .katex-display { margin: 0.1rem 0 0.5rem; text-align: left; }
+  .derive .katex-display > .katex { text-align: left; }
+  .tricks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.25rem; }
+  .tricks > div { border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); padding: 1rem 1.1rem; }
+  .tricks h3 { font-size: 0.95rem; }
+  .tricks p { font-size: 0.9rem; color: var(--ink-2); margin: 0; }
+  .codebox { position: relative; margin-top: 1.5rem; }
+  .codebox pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1rem 1.2rem; overflow-x: auto; font: 400 0.8rem/1.6 var(--mono); color: var(--ink); }
+  .codebox .copy, .bib button { position: absolute; top: 0.55rem; right: 0.55rem; font: 500 0.76rem/1 var(--sans); padding: 0.42rem 0.7rem; border-radius: 999px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); cursor: pointer; }
+  .tok-com { color: var(--ink-3); font-style: italic; }
+  .tok-kw { color: var(--ours); }
+
+  /* sampling */
+  .samplers { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; margin-top: 1.5rem; }
+  .sampler { border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); padding: 1rem 1.1rem; min-width: 0; }
+  .sampler .tag { font: 500 0.7rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 0.5rem; }
+  .sampler.iter .tag { color: var(--iter); } .sampler.rand .tag { color: var(--ours); }
+  .sampler p { font-size: 0.9rem; color: var(--ink-2); margin: 0 0 0.75rem; }
+  .sampler svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .sampler svg text { font: 400 10.5px var(--mono); fill: var(--ink-3); }
+  .sampler .verdict2 { font-size: 0.86rem; color: var(--ink-2); margin: 0.6rem 0 0; }
+  .sampler .verdict2 b { color: var(--ink); font-weight: 600; }
+
+  /* charts */
+  .chart { position: relative; min-width: 0; }
+  .chart h3 { font-size: 0.92rem; margin-bottom: 0.15rem; }
+  .chart .sub { font-size: 0.82rem; color: var(--ink-3); margin: 0 0 0.5rem; }
+  .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart .axis text { font: 400 10.5px var(--mono); fill: var(--ink-3); }
+  .chart .grid line { stroke: var(--rule); stroke-width: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.85rem; color: var(--ink-2); margin-bottom: 1rem; }
+  .legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.4rem; vertical-align: -1px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--ground); font: 400 0.8rem/1.45 var(--sans); padding: 0.5rem 0.65rem; border-radius: 8px; white-space: nowrap; opacity: 0; transform: translate(-50%, calc(-100% - 10px)); transition: opacity 0.12s; z-index: 5; }
+  .tip b { font-weight: 600; }
+  .tip .n { font-family: var(--mono); }
+  #cScale svg { max-width: 46rem; }
+  .grid4 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.75rem 2rem; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; margin-top: 1.25rem; }
+  .two > * { min-width: 0; }
+  .note { font-size: 0.93rem; color: var(--ink-2); margin: 1.25rem 0 0; max-width: 50rem; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  table.data th, table.data td { padding: 0.45rem 0.45rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data th { font: 500 0.66rem/1.3 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); vertical-align: bottom; }
+  table.data td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  table.data td:first-child { font-family: var(--sans); color: var(--ink); }
+  table.data td.best { color: var(--ink); font-weight: 600; }
+  table.data tr.ours td { background: var(--ours-wash); } table.data tr.iter td { background: var(--iter-wash); }
+  .tablewrap { overflow-x: auto; }
+  .stat-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+  .stat { border: 1px solid var(--rule); background: var(--surface); border-radius: 12px; padding: 1.2rem 1.3rem; min-width: 0; }
+  .stat .lab { font: 500 0.72rem/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .vals { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin-top: 0.5rem; }
+  .stat .val { font: 500 1.7rem/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+  .stat .val.ours { color: var(--ours); }
+  .stat .val small { display: block; font: 400 0.78rem var(--sans); color: var(--ink-3); }
+  .stat p { margin: 0.6rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+  .baselines { margin: 1rem 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+  .baselines li { font-size: 0.88rem; color: var(--ink-2); border-left: 2px solid var(--rule); padding-left: 0.75rem; }
+  .baselines li b { color: var(--ink); font-weight: 600; display: block; font-size: 0.86rem; }
+  .baselines li.ours { border-color: var(--ours); } .baselines li.iter { border-color: var(--iter); }
+  .downloads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.5rem; }
+  .dl { display: grid; gap: 0.25rem; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); text-decoration: none; color: var(--ink); }
+  .dl:hover { border-color: var(--ink-3); text-decoration: none; }
+  .dl .f { font: 500 0.82rem var(--mono); color: var(--ours); word-break: break-all; }
+  .dl .d { font-size: 0.88rem; color: var(--ink-2); }
+  .scope { margin-top: 2rem; max-width: 46rem; border-left: 3px solid var(--iter); padding: 0.2rem 0 0.2rem 1.1rem; }
+  .scope p { color: var(--ink-2); margin: 0 0 0.6rem; font-size: 0.97rem; }
+  .scope p:last-child { margin: 0; }
+  .bib { position: relative; margin-top: 1.25rem; }
+  .bib pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 1.25rem 1.35rem; overflow-x: auto; font: 400 0.85rem/1.6 var(--mono); color: var(--ink); }
+  footer { border-top: 1px solid var(--rule); padding-block: 2rem 3rem; color: var(--ink-3); font-size: 0.88rem; display: grid; gap: 0.5rem; }
+  footer p { margin: 0; }
+
+  @media (max-width: 900px) {
+    .tricks, .baselines { grid-template-columns: minmax(0, 1fr); }
+    .grid4, .two, .samplers { grid-template-columns: minmax(0, 1fr); }
+    .derive .row { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
+  }
+  @media (max-width: 760px) {
+    header.hero { padding-block: 2.75rem 2rem; }
+    .heads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .prefs { grid-template-columns: minmax(0, 1fr); }
+    .vs { grid-auto-flow: column; justify-content: center; }
+    .readout, .stat-row, .downloads { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="venue"><span class="badge">TMLR · 2026</span><span>UMass Amherst · UC Berkeley · NYU</span></div>
+  <h1>Adaptive Margin RLHF via <em>Preference over Preferences</em></h1>
+  <div class="authors">
+    <ul>
+      <li><a href="https://yaswanthchittepu.github.io/">Yaswanth Chittepu</a><sup>1</sup></li>
+      <li>Prasann Singhal<sup>2</sup></li>
+      <li>Greg Durrett<sup>3</sup></li>
+      <li>Scott Niekum<sup>1</sup></li>
+    </ul>
+    <div class="affil"><sup>1</sup> University of Massachusetts Amherst &nbsp;·&nbsp; <sup>2</sup> University of California, Berkeley &nbsp;·&nbsp; <sup>3</sup> New York University</div>
+  </div>
+  <nav class="links" aria-label="Paper resources">
+    <a class="btn primary" href="https://openreview.net/forum?id=mdRn7sI8g1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 1.75h5.5L12.25 4.5v9.75h-8.5z"/><path d="M9.25 1.75V4.75h3"/></svg>Paper (OpenReview)</a>
+    <a class="btn" href="https://arxiv.org/abs/2509.22851"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>arXiv</a>
+    <a class="btn" href="https://github.com/UMass-SCALAR-Lab/Pref-over-Pref"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 3-7 2-7 4"/></svg>Code</a>
+    <a class="btn" href="#data"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6.5 3.5v9"/></svg>Results data</a>
+    <a class="btn" href="#cite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 2.75h10v10.5H3z"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>BibTeX</a>
+  </nav>
+  <div class="thesis">
+    <p><strong>Some preferences are stronger than others, but numerical scores for that strength are hard to give consistently.</strong> We ask a simpler question: of these two preferences, which one is stronger? Each answer gives the stronger preference a margin to beat, set by the weaker one. DPO-PoP learns those margins without ever seeing a numerical score.</p>
+  </div>
+  <div class="heads">
+    <div class="head"><div class="val ours">14.2%</div><div class="lab">AlpacaEval 2 length-controlled win rate for DPO-PoP-Random (best baseline 12.4%)</div></div>
+    <div class="head"><div class="val ours">62.2%</div><div class="lab">UltraRM win rate over vanilla DPO with labels from GPT-4.1 (best baseline 56.9%)</div></div>
+    <div class="head"><div class="val iter">80.0%</div><div class="lab">test preference accuracy for DPO-PoP-Iter (best baseline 72.1%)</div></div>
+    <div class="head"><div class="val ours">+17 pp</div><div class="lab">win rate over DPO-margin-gt when only 7,500 preferences are available</div></div>
+  </div>
+</header>
+
+<section id="idea">
+  <div class="col">
+    <p class="eyebrow">The idea</p>
+    <h2>Compare preferences, not just responses</h2>
+    <p class="lede">A standard preference says response A beats response B. It does not say by how much. Margin-based losses can use that strength, but they usually get it from numerical ratings, and annotators who agree on which response is better often disagree on the scores.</p>
+    <p>So we ask a second-order question. Given two preferences, \(A \succ B\) and \(C \succ D\), which one reflects the larger difference? If the label says \((A \succ B) \succ (C \succ D)\), then under the true reward \(r\),</p>
+    <p style="text-align:center">\[ r(A) - r(B) \;>\; r(C) - r(D). \]</p>
+    <p>The weaker preference's margin becomes a lower bound for the stronger one. The two preferences can come from different prompts, and the label is a single binary choice. This follows the same principle as MACBETH in decision analysis and best-worst scaling in annotation: relative judgments are easier to make consistently than absolute scores.</p>
+    <details class="abstract"><summary>Read the abstract</summary>
+      <p>Margin-based optimization is fundamental to improving generalization and robustness in classification tasks. In the context of reward model learning from preferences within Reinforcement Learning from Human Feedback (RLHF), existing methods typically rely on no margins, fixed margins, or margins that are simplistic functions of preference ratings. However, such formulations often fail to account for the varying strengths of different preferences, and methods that do adapt the margin require access to numerical preference scores. We propose leveraging preferences over preferences, that is, annotations indicating which of two preferences reflects a stronger distinction, to infer adaptive margins on a per-datapoint basis, eliciting margin information without requiring annotators to assign numerical scores. Such preference-over-preference annotations are general and can be incorporated into both standard RLHF reward modeling objectives and direct alignment losses. As a concrete instantiation, we introduce DPO-PoP, an extension to Direct Preference Optimization (DPO) that incorporates adaptive margins from preference-over-preference supervision, improving generative performance over margin-based baselines both when PoP labels are derived from dataset scores and when they are gathered from an LLM annotator, with additional discriminative gains in the former setting. Additionally, we show a tradeoff between discriminative and generative performance and propose two sampling strategies for gathering preference-over-preference labels to navigate it.</p>
+    </details>
+  </div>
+
+  <div class="card play" id="play">
+    <div class="fig-head">
+      <h3 style="margin:0">Try it: one PoP comparison</h3>
+      <span class="muted">Drag the rewards. Every label follows them, as an annotator's would.</span>
+    </div>
+    <div class="prefs">
+      <div class="pref" id="pref1">
+        <div class="ph"><span class="t">Preference 1</span><span class="role" id="role1"></span></div>
+        <div class="prompt">“Write a poem about cats.”</div>
+        <div class="resp"><div id="r1a"><b></b>A purr’s low song…</div><div id="r1b"><b></b>Bark so loud…</div></div>
+        <svg viewBox="0 0 320 64" id="line1" aria-hidden="true"></svg>
+        <label class="sl">r(“A purr’s…”)<input type="range" id="p1a" min="-3" max="3" step="0.1" value="1.0"><output id="o1a"></output></label>
+        <label class="sl">r(“Bark so…”)<input type="range" id="p1b" min="-3" max="3" step="0.1" value="-0.4"><output id="o1b"></output></label>
+      </div>
+      <div class="vs"><span class="sym" id="vsSym" aria-hidden="true">≻</span><span class="muted" id="vsLab" style="text-align:center"></span></div>
+      <div class="pref" id="pref2">
+        <div class="ph"><span class="t">Preference 2</span><span class="role" id="role2"></span></div>
+        <div class="prompt">“Which of dog or cat has two hands?”</div>
+        <div class="resp"><div id="r2a"><b></b>Neither…</div><div id="r2b"><b></b>Invalid question…</div></div>
+        <svg viewBox="0 0 320 64" id="line2" aria-hidden="true"></svg>
+        <label class="sl">r(“Neither…”)<input type="range" id="p2a" min="-3" max="3" step="0.1" value="0.4"><output id="o2a"></output></label>
+        <label class="sl">r(“Invalid…”)<input type="range" id="p2b" min="-3" max="3" step="0.1" value="-0.5"><output id="o2b"></output></label>
+      </div>
+    </div>
+    <div class="readout">
+      <div><div class="k">PoP label</div><div class="v" id="label"></div><div class="s" id="labelS"></div></div>
+      <div><div class="k">Margin to beat</div><div class="v" id="target"></div><div class="s" id="targetS"></div></div>
+      <div><div class="k">Loss on the stronger: DPO vs DPO-PoP</div><div class="v" id="losses"></div><div class="gbar" title="push on the stronger margin"><i id="gbar"></i></div><div class="s" id="gradS"></div></div>
+    </div>
+    <p class="verdict" id="verdict"></p>
+    <figcaption>Illustrative values. The example pair is the one in the paper's Figure 1. Here \(M_{\max} = 2\). The losses are what DPO and DPO-PoP would assign to a model whose implicit rewards equal the values above. In DPO-PoP those rewards are scaled log-probability ratios, and the weaker margin comes from a slowly updated target policy.</figcaption>
+  </div>
+</section>
+
+<section id="method">
+  <div class="col">
+    <p class="eyebrow">Method</p>
+    <h2>DPO-PoP: a margin from the weaker preference</h2>
+    <p class="lede">The PoP objective fits a reward model or, as here, plugs into DPO. A PoP dataset holds pairs of preferences, a stronger one \((x_s, y_s^+, y_s^-)\) and a weaker one \((x_w, y_w^+, y_w^-)\).</p>
+  </div>
+  <div class="derive">
+    <div class="row">
+      <div class="tag">Reward modeling with PoP</div>
+      <div class="body">\[\min_{\phi}\; \mathbb{E}_{\mathcal{D}_{\text{PoP}}}\Big[-\log\sigma\big(r_\phi(x_s,y_s^+) - r_\phi(x_s,y_s^-) - \text{sg}\big[r_\phi(x_w,y_w^+) - r_\phi(x_w,y_w^-)\big]\big)\Big]\]
+      <p>A margin-based Bradley–Terry loss in which the margin is the model's own reward gap on the weaker preference.</p></div>
+    </div>
+    <div class="row">
+      <div class="tag">Implicit margin</div>
+      <div class="body">\[m_\theta(x, y^+, y^-) = \beta\Big(\log\tfrac{\pi_\theta(y^+\mid x)}{\pi_{\text{ref}}(y^+\mid x)} - \log\tfrac{\pi_\theta(y^-\mid x)}{\pi_{\text{ref}}(y^-\mid x)}\Big)\]
+      <p>As in DPO, the reward is written in terms of the policy, so there is no separate reward model and no RL stage.</p></div>
+    </div>
+    <div class="row ours">
+      <div class="tag">DPO-PoP objective</div>
+      <div class="body">\[\min_{\theta}\; \mathbb{E}_{\mathcal{D}_{\text{PoP}}}\Big[-\log\sigma\Big(m_\theta(x_s,y_s^+,y_s^-) - \text{sg}\big[\text{clip}_{[0,M_{\max}]}\big(m_{\hat\theta}(x_w,y_w^+,y_w^-)\big)\big]\Big)\Big]\]
+      <p>The stronger preference has to beat the weaker one's margin. After building the PoP pairs, the scalar scores are discarded and never used in training.</p></div>
+    </div>
+  </div>
+  <div class="tricks">
+    <div><h3>Stop-gradient</h3><p>The weaker margin is a fixed target. Without \(\text{sg}\), the loss could be lowered by shrinking or inverting the weaker preference. Each PoP example backpropagates only through the stronger preference.</p></div>
+    <div><h3>Clipping to \([0, M_{\max}]\)</h3><p>Unbounded margins make the loss swing and occasionally explode. Clipping keeps the target in a fixed range and stabilizes optimization.</p></div>
+    <div><h3>Polyak target policy</h3><p>The weaker margin is computed with \(\pi_{\hat\theta}\), a slowly updated average of \(\pi_\theta\), so the targets do not move too fast between steps.</p></div>
+  </div>
+  <p class="note">Cost: one extra gradient-free forward pass over the weaker preference, under the target and reference policies. In the paper's setting that is 1.24× the wall-clock time of DPO run for the same number of optimizer steps.</p>
+  <div class="codebox">
+    <button type="button" class="copy">Copy</button>
+<pre><span class="tok-com"># Sketch of the DPO-PoP loss, written from the equation above (not the released code).</span>
+<span class="tok-kw">import</span> torch
+<span class="tok-kw">import</span> torch.nn.functional <span class="tok-kw">as</span> F
+
+<span class="tok-kw">def</span> margin(logp, ref_logp, beta):
+    <span class="tok-com"># logp, ref_logp: (B, 2) sequence log-probs of [preferred, dispreferred]</span>
+    <span class="tok-kw">return</span> beta * ((logp[:, 0] - ref_logp[:, 0]) - (logp[:, 1] - ref_logp[:, 1]))
+
+<span class="tok-kw">def</span> dpo_pop_loss(strong_logp, strong_ref, weak_logp_target, weak_ref, beta, m_max):
+    m_s = margin(strong_logp, strong_ref, beta)                 <span class="tok-com"># gradients flow here</span>
+    <span class="tok-kw">with</span> torch.no_grad():                                      <span class="tok-com"># stop-gradient</span>
+        m_w = margin(weak_logp_target, weak_ref, beta).clamp(0.0, m_max)
+    <span class="tok-kw">return</span> -F.logsigmoid(m_s - m_w).mean()
+
+<span class="tok-com"># After each optimizer step, Polyak-average the target policy:</span>
+<span class="tok-com"># for p_t, p in zip(target.parameters(), policy.parameters()):</span>
+<span class="tok-com">#     p_t.data.mul_(tau).add_(p.data, alpha=1 - tau)</span></pre>
+  </div>
+</section>
+
+<section id="sampling">
+  <div class="col">
+    <p class="eyebrow">Building the PoP dataset</p>
+    <h2>Which preferences get compared shapes what the model learns</h2>
+    <p class="lede">A dataset of \(N\) preferences allows about \(N^2/2\) PoP pairs, but \(kN\) is enough (\(k = 2\) by default). The paper compares two ways of choosing them.</p>
+  </div>
+  <div class="samplers">
+    <div class="sampler iter">
+      <span class="tag">Iterative sampling → DPO-PoP-Iter</span>
+      <p>Each preference is compared with \(k\) weaker ones, so every preference (except the weakest few) is the stronger side equally often. Weak preferences get as much training as strong ones, against even weaker, noisier partners.</p>
+      <svg id="simIter" viewBox="0 0 420 170" role="img" aria-label="Iterative sampling: gradient updates are spread evenly across preference strengths"></svg>
+      <p class="verdict2"><b>Favors discrimination.</b> Higher test accuracy, mostly from small-margin examples, at some cost in generation quality.</p>
+    </div>
+    <div class="sampler rand">
+      <span class="tag">Random sampling → DPO-PoP-Random</span>
+      <p>Pairs are drawn at random and the annotator picks the stronger side. Strong preferences win more comparisons, so they get more gradient. It is also easier to collect: one label per random pair.</p>
+      <svg id="simRand" viewBox="0 0 420 170" role="img" aria-label="Random sampling: stronger preferences receive more gradient updates"></svg>
+      <p class="verdict2"><b>Favors generation.</b> Best win rates and margin correlations, with robust RewardBench scores.</p>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;margin-top:1rem">
+    <button type="button" class="btn" id="resample"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v2.8h-2.8"/></svg>Resample</button>
+    <span class="muted">Simulation with 16 preferences sorted from weakest to strongest and \(k = 2\). Bars count how often each preference is the stronger side of a pair, which is when it receives gradient.</span>
+  </div>
+</section>
+
+<section id="results">
+  <div class="col">
+    <p class="eyebrow">Results · Llama-3.2-3B on UltraFeedback</p>
+    <h2>PoP margins beat margins taken from the scores themselves</h2>
+    <p class="lede">All models start from the same SFT checkpoint and train on UltraFeedback preferences. Means over 6 seeds; the bars show ±1 std. Win rates are against vanilla DPO, judged by UltraRM.</p>
+  </div>
+  <ul class="baselines">
+    <li><b>Vanilla DPO</b>No margin.</li>
+    <li><b>DPO-margin-1</b>The same fixed margin of 1 for every preference.</li>
+    <li><b>DPO-margin-gt</b>Margin = UltraFeedback score difference. Sees the scores directly.</li>
+    <li><b>DPO-margin-gt-scaled</b>Scaled Bradley–Terry: the score difference weights the loss.</li>
+    <li class="iter"><b>DPO-PoP-Iter</b>PoP margins, iterative sampling. Never sees scores.</li>
+    <li class="ours"><b>DPO-PoP-Random</b>PoP margins, random sampling. Never sees scores.</li>
+  </ul>
+  <div class="card" style="margin-top:1.5rem">
+    <div class="fig-head">
+      <div class="segs">
+        <div class="seg" id="setSeg" role="group" aria-label="Source of PoP labels"><button type="button" data-v="syn" aria-pressed="true">Labels from dataset scores</button><button type="button" data-v="llm" aria-pressed="false">Labels from GPT-4.1</button></div>
+        <div class="seg" id="viewSeg" role="group" aria-label="View"><button type="button" data-v="chart" aria-pressed="true">Chart</button><button type="button" data-v="table" aria-pressed="false">Table</button></div>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="resChart" class="grid4">
+      <div class="chart" id="cWR"><h3>UltraRM win rate vs vanilla DPO</h3><p class="sub">Generation · % of prompts where the judge prefers the model</p></div>
+      <div class="chart" id="cLC"><h3>AlpacaEval 2 LC win rate</h3><p class="sub">Generation · length-controlled, %</p></div>
+      <div class="chart" id="cAcc"><h3>Test preference accuracy</h3><p class="sub">Discrimination · UltraFeedback test split, %</p></div>
+      <div class="chart" id="cRB"><h3>RewardBench overall</h3><p class="sub">Discrimination · out of domain</p></div>
+    </div>
+    <div id="resTable" class="tablewrap" hidden></div>
+    <p class="note" id="resNote"></p>
+  </div>
+
+  <div class="two" style="margin-top:2rem">
+    <div class="card">
+      <div class="chart" id="cTrade"><h3>The discrimination–generation tradeoff</h3><p class="sub">Test accuracy vs UltraRM win rate, labels from dataset scores</p></div>
+    </div>
+    <div class="col" style="align-self:center">
+      <h3>Why does the most accurate model generate worse?</h3>
+      <p style="color:var(--ink-2)">DPO-PoP-Iter classifies about 8 points more test preferences correctly, but nearly all of that gain is on small-margin examples, where the labels are least reliable. On strongly preferred pairs it does worse than the baselines. DPO-PoP-Random keeps the strong preferences right and has the highest correlation with the dataset's own margins (Pearson 0.364, Spearman 0.369).</p>
+      <p style="color:var(--ink-2)">The paper connects this to a generalization bound for adaptive-margin classifiers that grows with \(\sqrt{\sum_i 1/m_i^2}\). Many tiny margins, which is what iterative sampling produces, loosen it. The bound's assumptions don't hold exactly for DPO-PoP, so the paper treats this as intuition rather than proof.</p>
+    </div>
+  </div>
+</section>
+
+<section id="checks">
+  <div class="col">
+    <p class="eyebrow">Stress tests</p>
+    <h2>Is it the margins, or something else?</h2>
+  </div>
+  <div class="stat-row">
+    <div class="stat">
+      <div class="lab">Same number of optimizer steps</div>
+      <div class="vals"><div class="val ours">62.4%<small>DPO-PoP-Random, 1 epoch</small></div><div class="val">59.5%<small>best baseline, 2 epochs</small></div></div>
+      <p>With \(k = 2\), DPO-PoP takes twice as many steps as one epoch of DPO. Training the baselines for 2 epochs matches the steps but doesn't close the gap. RewardBench and test accuracy drop for every baseline.</p>
+    </div>
+    <div class="stat">
+      <div class="lab">An independent judge</div>
+      <div class="vals"><div class="val ours">64.3%<small>DPO-PoP-Random</small></div><div class="val">62.8%<small>DPO-margin-gt</small></div></div>
+      <p>UltraRM was trained on UltraFeedback. Re-judging 1,997 held-out prompts with Skywork-Reward-V2 (Llama-3.1-8B) gives the same ordering. Single seed.</p>
+    </div>
+    <div class="stat">
+      <div class="lab">A larger model: Llama-3.1-8B</div>
+      <div class="vals"><div class="val ours">63%<small>UltraRM win rate</small></div><div class="val ours">14.6%<small>AlpacaEval 2 LC</small></div><div class="val ours">76.3<small>RewardBench</small></div></div>
+      <p>DPO-PoP-Random again leads every column. The best baselines reach 59%, 11.2% and 73.7%. DPO-PoP-Iter again has the top test accuracy (82%).</p>
+    </div>
+    <div class="stat">
+      <div class="lab">Noisy labels</div>
+      <div class="vals"><div class="val">ε = 0.1, 0.3<small>random label flips</small></div><div class="val">τ = 1…16<small>margin-dependent flips</small></div></div>
+      <p>Random flips lower win rates and correlations as ε grows. When close pairs are the ones most likely to flip, as with a real annotator, accuracy and win rate hold steady or rise slightly for both variants.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.5rem">
+    <div class="chart" id="cScale"><h3>Little data, many comparisons</h3><p class="sub">UltraRM win rate vs vanilla DPO with 7,500 preferences, as the PoP dataset grows to \(k \times 7{,}500\) pairs</p></div>
+    <p class="note">With few preferences, re-pairing them helps a lot. Both PoP variants peak at 77% (\(k = 4\) to \(8\)), 17 points above DPO-margin-gt, then decline as the model starts fitting the inferred margins too closely. Test accuracy goes the other way and is best at \(k = 1\) or \(2\).</p>
+  </div>
+
+  <div class="scope">
+    <p><b>What the evidence does and doesn't show.</b> The accuracy gain of DPO-PoP-Iter may come mostly from how iterative sampling over-represents weak preferences, not from the PoP labels: with completely random labels (\(\epsilon = 0.5\)) its in-domain accuracy does not drop. Every other metric, for both variants, does degrade without real labels.</p>
+    <p>With GPT-4.1 labels the gains are in generation only. Test accuracy and RewardBench are on par with the baselines, and DPO-margin-gt-scaled has the best accuracy. GPT-4.1's PoP labels agree with the ordering implied by UltraFeedback scores 75.4% of the time, with 7.9% ties discarded.</p>
+    <p>Correlations with “true” margins use UltraFeedback's LLM-assigned scores as a proxy, so they are only available in this setting.</p>
+  </div>
+</section>
+
+<section id="data">
+  <div class="col">
+    <p class="eyebrow">Use the results</p>
+    <h2>Every number on this page, as CSV</h2>
+    <p>Taken from the tables in the TMLR paper. Standard deviations are over 6 seeds where the paper reports them.</p>
+  </div>
+  <div class="downloads">
+    <a class="dl" href="data/main-results-llama-3.2-3b.csv" download><span class="f">main-results-llama-3.2-3b.csv</span><span class="d">All metrics, 6 methods, labels from scores or from GPT-4.1.</span></a>
+    <a class="dl" href="data/llama-3.1-8b.csv" download><span class="f">llama-3.1-8b.csv</span><span class="d">The same evaluation on Llama-3.1-8B.</span></a>
+    <a class="dl" href="data/pop-data-scale-7500-prefs.csv" download><span class="f">pop-data-scale-7500-prefs.csv</span><span class="d">Small-data sweep over \(k \in \{1, 2, 4, 8, 16\}\).</span></a>
+    <a class="dl" href="data/compute-matched.csv" download><span class="f">compute-matched.csv</span><span class="d">Baselines at 1 vs 2 epochs, against DPO-PoP.</span></a>
+    <a class="dl" href="data/independent-judge-skywork.csv" download><span class="f">independent-judge-skywork.csv</span><span class="d">Win rates under Skywork-Reward-V2.</span></a>
+    <a class="dl" href="data/margin-dependent-label-noise.csv" download><span class="f">margin-dependent-label-noise.csv</span><span class="d">Accuracy and win rate as label noise rises.</span></a>
+  </div>
+</section>
+
+<section id="cite">
+  <p class="eyebrow">Citation</p>
+  <h2>BibTeX</h2>
+  <div class="bib"><button type="button" id="copyBib">Copy</button><pre id="bibText">@article{chittepu2026adaptive,
+  title   = {Adaptive Margin {RLHF} via Preference over Preferences},
+  author  = {Chittepu, Yaswanth and Singhal, Prasann and Durrett, Greg
+             and Niekum, Scott},
+  journal = {Transactions on Machine Learning Research},
+  issn    = {2835-8856},
+  year    = {2026},
+  url     = {https://openreview.net/forum?id=mdRn7sI8g1}
+}</pre></div>
+</section>
+
+<footer>
+  <p><a href="https://yaswanthchittepu.github.io/">Yaswanth Chittepu</a> · <a href="https://github.com/UMass-SCALAR-Lab">SCALAR Lab</a>, UMass Amherst</p>
+</footer>
+</div>
+
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function txt(parent, x, y, s, attrs = {}) { const t = el("text", { x, y, ...attrs }, parent); t.textContent = s; return t; }
+function attachTip(container) {
+  const tip = document.createElement("div"); tip.className = "tip"; container.appendChild(tip);
+  return { show(html, x, y) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1; }, hide() { tip.style.opacity = 0; } };
+}
+function svgPoint(svg, container, x, y) {
+  const r = svg.getBoundingClientRect(), c = container.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  return [r.left - c.left + x * r.width / vb.width, r.top - c.top + y * r.height / vb.height];
+}
+const sig = z => 1 / (1 + Math.exp(-z));
+const softplus = z => z > 30 ? z : Math.log1p(Math.exp(z));
+
+/* ---------- 1. PoP playground ---------- */
+(() => {
+  const MMAX = 2, TIE = 0.05;
+  const ids = ["p1a", "p1b", "p2a", "p2b"], inp = Object.fromEntries(ids.map(i => [i, document.getElementById(i)]));
+  const $ = id => document.getElementById(id);
+  function drawLine(svg, hi, lo, role) {
+    svg.innerHTML = "";
+    const L = 14, R = 306, y = 26, x = v => L + (R - L) * (v + 3) / 6;
+    el("line", { x1: L, x2: R, y1: y, y2: y, stroke: css("--ink-3"), "stroke-width": 1 }, svg);
+    [-3, 0, 3].forEach(t => { el("line", { x1: x(t), x2: x(t), y1: y - 3, y2: y + 3, stroke: css("--ink-3") }, svg); txt(svg, x(t), y + 34, t === 0 ? "0" : (t > 0 ? "+3" : "−3"), { "text-anchor": "middle" }); });
+    el("rect", { x: x(lo), y: y - 5, width: Math.max(0, x(hi) - x(lo)), height: 10, rx: 2, fill: css(role === "strong" ? "--ours-wash" : "--base-wash") }, svg);
+    el("circle", { cx: x(lo), cy: y, r: 6.5, fill: css(hi === lo ? "--ink-3" : "--bad"), stroke: css("--surface"), "stroke-width": 2 }, svg);
+    el("circle", { cx: x(hi), cy: y, r: 6.5, fill: css(hi === lo ? "--ink-3" : "--ok"), stroke: css("--surface"), "stroke-width": 2 }, svg);
+    txt(svg, (x(hi) + x(lo)) / 2, y - 12, "m = " + (hi - lo).toFixed(1), { "text-anchor": "middle", style: `font-weight:500;fill:${css("--ink")}` });
+  }
+  function tagResponses(k, a, b) {
+    const ea = $("r" + k + "a"), eb = $("r" + k + "b");
+    const set = (e, cls, t) => { e.className = cls; e.querySelector("b").textContent = t; };
+    if (Math.abs(a - b) < TIE) { set(ea, "", "Tie"); set(eb, "", "Tie"); }
+    else if (a > b) { set(ea, "w", "Preferred"); set(eb, "l", "Dispreferred"); }
+    else { set(ea, "l", "Dispreferred"); set(eb, "w", "Preferred"); }
+  }
+  function upd() {
+    const v = Object.fromEntries(ids.map(i => [i, +inp[i].value]));
+    ids.forEach(i => $("o" + i.slice(1)).textContent = v[i].toFixed(1));
+    tagResponses(1, v.p1a, v.p1b); tagResponses(2, v.p2a, v.p2b);
+    const m = [null, Math.abs(v.p1a - v.p1b), Math.abs(v.p2a - v.p2b)];
+    const tie = Math.abs(m[1] - m[2]) < TIE;
+    const S = m[1] >= m[2] ? 1 : 2, Wk = 3 - S;
+    const role = k => tie ? "tie" : k === S ? "strong" : "weak";
+    drawLine($("line1"), Math.max(v.p1a, v.p1b), Math.min(v.p1a, v.p1b), role(1));
+    drawLine($("line2"), Math.max(v.p2a, v.p2b), Math.min(v.p2a, v.p2b), role(2));
+    [1, 2].forEach(k => {
+      $("pref" + k).classList.toggle("strong", role(k) === "strong");
+      $("role" + k).textContent = role(k) === "strong" ? "stronger · gets gradient" : role(k) === "weak" ? "weaker · sets the margin" : "tie";
+    });
+    $("vsSym").textContent = tie ? "≈" : S === 1 ? "≻" : "≺";
+    $("vsLab").textContent = tie ? "tie" : `P${S} is stronger`;
+    if (tie) {
+      $("label").textContent = "Tie";
+      $("labelS").textContent = "discarded from the PoP dataset";
+      $("target").textContent = "—"; $("targetS").textContent = "no comparison";
+      $("losses").textContent = "—"; $("gbar").style.width = "0%"; $("gradS").textContent = "";
+      $("verdict").innerHTML = "The two preferences are equally strong, so there is nothing to compare. The paper discards ties; they were 7.9% of GPT-4.1's labels.";
+      return;
+    }
+    const ms = m[S], mw = m[Wk], target = Math.min(MMAX, mw);
+    $("label").textContent = `P${S} ≻ P${Wk}`;
+    $("labelS").textContent = `margin ${ms.toFixed(1)} vs ${mw.toFixed(1)}`;
+    $("target").textContent = target.toFixed(2);
+    $("targetS").textContent = mw > MMAX ? `P${Wk}'s margin ${mw.toFixed(1)}, clipped to ${MMAX}` : `P${Wk}'s margin, within [0, ${MMAX}]`;
+    const lDPO = softplus(-ms), lPoP = softplus(-(ms - target)), g = sig(-(ms - target));
+    $("losses").textContent = `${lDPO.toFixed(2)} · ${lPoP.toFixed(2)}`;
+    $("gbar").style.width = (g * 100).toFixed(0) + "%";
+    $("gradS").textContent = `push on P${S}'s margin: ${g.toFixed(2)}`;
+    const gap = ms - target;
+    let msg = `<b>Preference ${S}</b> has the larger margin, so it is the stronger preference and must beat <b>Preference ${Wk}</b>'s margin (${target.toFixed(1)}). `;
+    msg += gap < 1 ? `It only beats it by ${gap.toFixed(1)}, so DPO-PoP's loss (${lPoP.toFixed(2)}) is well above plain DPO's (${lDPO.toFixed(2)}) and training keeps widening the gap.` : `It clears that margin by ${gap.toFixed(1)}, so the DPO-PoP loss is small and the push fades.`;
+    msg += ` Preference ${Wk} gets no gradient from this pair: its margin sits behind a stop-gradient.`;
+    $("verdict").innerHTML = msg;
+  }
+  ids.forEach(i => inp[i].addEventListener("input", upd));
+  window.addEventListener("load", upd); upd();
+  const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener && mq.addEventListener("change", upd);
+})();
+
+/* ---------- 2. Sampling simulator ---------- */
+(() => {
+  const N = 16, K = 2;
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function draw(svg, counts, color, maxC) {
+    svg.innerHTML = "";
+    const L = 22, R = 412, T = 8, B = 128, bw = (R - L) / N;
+    const y = v => B - (B - T) * v / maxC;
+    for (let t = 0; t <= maxC; t += 2) { el("line", { x1: L, x2: R, y1: y(t), y2: y(t), stroke: css("--rule") }, svg); txt(svg, L - 6, y(t) + 3.5, t, { "text-anchor": "end" }); }
+    counts.forEach((c, i) => {
+      const x = L + i * bw + 3, h = B - y(c);
+      if (c > 0) el("rect", { x, y: y(c), width: bw - 6, height: h, rx: 3, fill: css(color) }, svg);
+      el("circle", { cx: x + (bw - 6) / 2, cy: B + 14, r: 2 + 5 * (i + 1) / N, fill: css("--ink-3"), opacity: 0.35 + 0.65 * (i + 1) / N }, svg);
+    });
+    el("line", { x1: L, x2: R, y1: B, y2: B, stroke: css("--ink-3") }, svg);
+    txt(svg, L, B + 36, "weakest preference", {}); txt(svg, R, B + 36, "strongest", { "text-anchor": "end" });
+  }
+  let seed = 7;
+  function run() {
+    const r = rng(seed);
+    const it = new Array(N).fill(0), rd = new Array(N).fill(0);
+    for (let i = 0; i < N; i++) { const weaker = [...Array(i).keys()]; for (let j = 0; j < Math.min(K, weaker.length); j++) { weaker.splice(Math.floor(r() * weaker.length), 1); it[i]++; } }
+    for (let n = 0; n < N * K; n++) { const a = Math.floor(r() * N); let b = Math.floor(r() * (N - 1)); if (b >= a) b++; rd[Math.max(a, b)]++; }
+    const maxC = Math.max(6, Math.ceil(Math.max(...rd) / 2) * 2);
+    draw(document.getElementById("simIter"), it, "--iter", maxC);
+    draw(document.getElementById("simRand"), rd, "--ours", maxC);
+  }
+  document.getElementById("resample").onclick = () => { seed++; run(); };
+  run();
+  const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener && mq.addEventListener("change", run);
+})();
+
+/* ---------- 3. Results ---------- */
+const M = ["Vanilla DPO", "DPO-margin-1", "DPO-margin-gt", "DPO-margin-gt-scaled", "DPO-PoP-Iter", "DPO-PoP-Random"];
+const colorOf = m => m === "DPO-PoP-Random" ? "--ours" : m === "DPO-PoP-Iter" ? "--iter" : "--base";
+const R = {
+  syn: {
+    methods: M,
+    wr: [[null], [54.9, .34], [61.3, 1.15], [53.7, .64], [57.8, .88], [62.4, 1.12]],
+    lc: [[11.74, .74], [11.74, 1.04], [12.40, .71], [10.99, .79], [12.30, .70], [14.24, 1.06]],
+    acc: [[71.15, .18], [71.18, .28], [71.85, .34], [72.05, .16], [79.97, .41], [71.09, .21]],
+    rb: [[75.46, .21], [75.78, .29], [77.45, .25], [77.13, .29], [76.73, .24], [78.87, .25]],
+    pe: [.2940, .2929, .3427, .3381, .2449, .3639], sp: [.3003, .2984, .3451, .3453, .3656, .3685],
+    note: "PoP labels built from UltraFeedback score differences, which are then discarded. DPO-PoP-Random has the best UltraRM win rate, AlpacaEval 2 LC win rate and RewardBench score, ahead of DPO-margin-gt, which trains on the scores directly. DPO-PoP-Iter has by far the best test accuracy (+7.9 points) but lower win rates.",
+  },
+  llm: {
+    methods: M.filter(m => m !== "DPO-PoP-Iter"),
+    wr: [[null], [53.1, 1.1], [56.9, 1.5], [50.7, 1.8], [62.2, 1.8]],
+    lc: [[7.66, .98], [8.37, .81], [10.40, 1.09], [8.09, .64], [11.07, 1.20]],
+    acc: [[62.84, .17], [61.48, .40], [61.33, .25], [64.02, .10], [62.98, .05]],
+    rb: [[73.05, .56], [73.49, .17], [73.77, .28], [73.51, .54], [73.57, .36]],
+    pe: [.1171, .1035, .1045, .1505, .1408], sp: [.1435, .1276, .1243, .1727, .1645],
+    note: "A realistic test: 5,000 preferences, PoP labels from GPT-4.1 on random pairs (k = 2). Only DPO-PoP-Random is trained, since it is the variant that is practical to annotate. It leads on generation by 5.3 points of UltraRM win rate over DPO-margin-gt, while test accuracy and RewardBench are on par with the baselines. The baselines here still use the UltraFeedback scores.",
+  },
+};
+function dots(box, names, data, lo, hi, ticks, fmt, ref) {
+  box.querySelectorAll("svg, .tip").forEach(n => n.remove());
+  const W = 440, L = 140, Rr = 14, rowH = 24, T = 6;
+  const H = T + names.length * rowH + 22;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": box.querySelector("h3").textContent }, box);
+  const x = v => L + (W - L - Rr) * (v - lo) / (hi - lo);
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  ticks.forEach(t => { el("line", { x1: x(t), x2: x(t), y1: T, y2: H - 18 }, g); txt(ax, x(t), H - 4, fmt(t), { "text-anchor": "middle" }); });
+  if (ref != null) { el("line", { x1: x(ref), x2: x(ref), y1: T, y2: H - 18, stroke: css("--ink-3"), "stroke-dasharray": "3 3" }, svg); }
+  const tip = attachTip(box);
+  const vals = data.map(d => d[0]).filter(v => v != null), best = Math.max(...vals);
+  names.forEach((n, i) => {
+    const y = T + i * rowH + rowH / 2, [v, s] = data[i];
+    const ours = n.startsWith("DPO-PoP");
+    txt(svg, 0, y + 4, n, { style: `font:${ours ? 600 : 400} 11.5px var(--sans);fill:var(--ink)` });
+    if (v == null) { txt(svg, x(ref ?? lo) + 6, y + 4, "reference (50%)", { style: `font:400 10.5px var(--mono);fill:${css("--ink-3")}` }); return; }
+    el("line", { x1: x(Math.max(lo, v - s)), x2: x(Math.min(hi, v + s)), y1: y, y2: y, stroke: css(colorOf(n)), "stroke-width": 2, "stroke-linecap": "round", opacity: 0.55 }, svg);
+    el("circle", { cx: x(v), cy: y, r: ours ? 5.5 : 4.5, fill: css(colorOf(n)), stroke: css("--surface"), "stroke-width": 2 }, svg);
+    if (v === best || ours) txt(svg, x(v) + (x(v) > W - 60 ? -9 : 9), y - 7, fmt(v), { "text-anchor": x(v) > W - 60 ? "end" : "start", style: `font:500 10.5px var(--mono);fill:${css("--ink")}` });
+    const hit = el("rect", { x: 0, y: y - rowH / 2, width: W, height: rowH, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, x(v), y - 6); tip.show(`<b>${n}</b><br><span class="n">${v.toFixed(2)} ± ${s}</span>`, px, py); });
+    hit.addEventListener("mouseleave", tip.hide);
+  });
+}
+(() => {
+  let set = "syn";
+  const f1 = v => (+v).toFixed(1);
+  function legend() {
+    document.getElementById("legend").innerHTML = R[set].methods.map(m => `<span><i style="background:var(${colorOf(m)})"></i>${m}</span>`).join("");
+  }
+  function table() {
+    const d = R[set], cols = [["UltraRM WR %", "wr"], ["AlpacaEval 2 LC %", "lc"], ["Test acc. %", "acc"], ["RewardBench", "rb"]];
+    const best = k => Math.max(...d[k].map(x => x[0] ?? -1));
+    document.getElementById("resTable").innerHTML = `<table class="data"><thead><tr><th>Method</th>${cols.map(c => `<th>${c[0]}</th>`).join("")}<th>Pearson</th><th>Spearman</th></tr></thead><tbody>` +
+      d.methods.map((m, i) => `<tr class="${m === "DPO-PoP-Random" ? "ours" : m === "DPO-PoP-Iter" ? "iter" : ""}"><td>${m}</td>${cols.map(([, k]) => { const [v, s] = d[k][i]; return v == null ? `<td>ref.</td>` : `<td class="${v === best(k) ? "best" : ""}">${v.toFixed(2)} ± ${s}</td>`; }).join("")}<td class="${d.pe[i] === Math.max(...d.pe) ? "best" : ""}">${d.pe[i].toFixed(3)}</td><td class="${d.sp[i] === Math.max(...d.sp) ? "best" : ""}">${d.sp[i].toFixed(3)}</td></tr>`).join("") + `</tbody></table>`;
+  }
+  function draw() {
+    const d = R[set];
+    legend();
+    dots(document.getElementById("cWR"), d.methods, d.wr, 48, 66, [50, 54, 58, 62, 66], f1, 50);
+    dots(document.getElementById("cLC"), d.methods, d.lc, set === "syn" ? 9 : 6, set === "syn" ? 16 : 13, set === "syn" ? [9, 11, 13, 15] : [6, 8, 10, 12], f1);
+    dots(document.getElementById("cAcc"), d.methods, d.acc, set === "syn" ? 70 : 60, set === "syn" ? 81 : 65, set === "syn" ? [70, 72, 74, 76, 78, 80] : [60, 61, 62, 63, 64, 65], f1);
+    dots(document.getElementById("cRB"), d.methods, d.rb, set === "syn" ? 74 : 72, set === "syn" ? 80 : 75, set === "syn" ? [74, 76, 78, 80] : [72, 73, 74, 75], f1);
+    table();
+    document.getElementById("resNote").textContent = d.note;
+  }
+  document.querySelectorAll("#setSeg button").forEach(b => b.onclick = () => { document.querySelectorAll("#setSeg button").forEach(x => x.setAttribute("aria-pressed", x === b)); set = b.dataset.v; draw(); });
+  document.querySelectorAll("#viewSeg button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#viewSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    const t = b.dataset.v === "table"; document.getElementById("resTable").hidden = !t; document.getElementById("resChart").hidden = t;
+  });
+  draw();
+  const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener && mq.addEventListener("change", draw);
+})();
+
+/* ---------- 4. Tradeoff scatter ---------- */
+function drawTrade() {
+  const box = document.getElementById("cTrade"); box.querySelectorAll("svg, .tip").forEach(n => n.remove());
+  const d = R.syn, W = 440, H = 280, L = 56, Rr = 16, T = 12, B = 240;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Scatter of test accuracy against UltraRM win rate. DPO-PoP-Random is highest on win rate; DPO-PoP-Iter is far right on accuracy but lower on win rate." }, box);
+  const x = v => L + (W - L - Rr) * (v - 70) / 11, y = v => B - (B - T) * (v - 48) / 16;
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  [70, 72, 74, 76, 78, 80].forEach(t => { el("line", { x1: x(t), x2: x(t), y1: T, y2: B }, g); txt(ax, x(t), B + 16, t + "%", { "text-anchor": "middle" }); });
+  [48, 52, 56, 60, 64].forEach(t => { el("line", { x1: L, x2: W - Rr, y1: y(t), y2: y(t) }, g); txt(ax, L - 6, y(t) + 3.5, t + "%", { "text-anchor": "end" }); });
+  txt(ax, (L + W) / 2, H - 2, "test preference accuracy →", { "text-anchor": "middle" });
+  const tip = attachTip(box);
+  const pos = { "Vanilla DPO": [6, 14, "start"], "DPO-margin-1": [8, 4, "start"], "DPO-margin-gt": [8, -8, "start"], "DPO-margin-gt-scaled": [8, 12, "start"], "DPO-PoP-Iter": [-9, -10, "end"], "DPO-PoP-Random": [8, -9, "start"] };
+  d.methods.forEach((m, i) => {
+    const a = d.acc[i][0], w = d.wr[i][0] ?? 50, ours = m.startsWith("DPO-PoP");
+    el("circle", { cx: x(a), cy: y(w), r: ours ? 6.5 : 5, fill: css(colorOf(m)), stroke: css("--surface"), "stroke-width": 2 }, svg);
+    const [dx, dy, anc] = pos[m];
+    txt(svg, x(a) + dx, y(w) + dy, m.replace("DPO-", "").replace("Vanilla DPO", "Vanilla"), { "text-anchor": anc, style: `font:${ours ? 600 : 400} 11px var(--sans);fill:var(--ink)` });
+    const hit = el("circle", { cx: x(a), cy: y(w), r: 14, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, x(a), y(w) - 8); tip.show(`<b>${m}</b><br>accuracy <span class="n">${a.toFixed(2)}%</span><br>win rate <span class="n">${d.wr[i][0] == null ? "50 (reference)" : w.toFixed(1) + "%"}</span>`, px, py); });
+    hit.addEventListener("mouseleave", tip.hide);
+  });
+  txt(svg, 12, (T + B) / 2, "UltraRM win rate →", { "text-anchor": "middle", transform: `rotate(-90 12 ${(T + B) / 2})`, style: `font:400 10.5px var(--mono);fill:${css("--ink-3")}` });
+}
+drawTrade();
+
+/* ---------- 5. Data-scale chart ---------- */
+function drawScale() {
+  const box = document.getElementById("cScale"); box.querySelectorAll("svg, .tip").forEach(n => n.remove());
+  const ks = [1, 2, 4, 8, 16], it = [55, 68, 77, 75, 69], rd = [57, 71, 77, 77, 72];
+  const W = 640, H = 236, L = 44, Rr = 150, T = 12, B = 196;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Win rate against k. Both PoP variants rise from about 56% at k=1 to 77% at k=4, then fall; DPO-margin-gt is flat at 60%." }, box);
+  const x = i => L + (W - L - Rr) * i / 4, y = v => B - (B - T) * (v - 50) / 30;
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  ks.forEach((k, i) => { el("line", { x1: x(i), x2: x(i), y1: T, y2: B }, g); txt(ax, x(i), B + 20, "k = " + k, { "text-anchor": "middle" }); });
+  [50, 60, 70, 80].forEach(t => { el("line", { x1: L, x2: W - Rr, y1: y(t), y2: y(t) }, g); txt(ax, L - 6, y(t) + 3.5, t + "%", { "text-anchor": "end" }); });
+  const base = [["DPO-margin-gt", 60], ["DPO-margin-1", 56], ["DPO-margin-gt-scaled", 51]];
+  base.forEach(([n, v], j) => { el("line", { x1: L, x2: W - Rr, y1: y(v), y2: y(v), stroke: css("--base"), "stroke-width": 1.5, "stroke-dasharray": j ? "2 4" : "6 4" }, svg); txt(svg, W - Rr + 8, y(v) + 4, `${n} ${v}%`, { style: `font:400 10.5px var(--sans);fill:${css("--ink-2")}` }); });
+  const tip = attachTip(box);
+  [["DPO-PoP-Iter", it, "--iter"], ["DPO-PoP-Random", rd, "--ours"]].forEach(([n, v, c], s) => {
+    el("polyline", { points: v.map((w, i) => `${x(i)},${y(w)}`).join(" "), fill: "none", stroke: css(c), "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+    v.forEach((w, i) => {
+      el("circle", { cx: x(i), cy: y(w), r: 4.5, fill: css(c), stroke: css("--surface"), "stroke-width": 2 }, svg);
+      const hit = el("circle", { cx: x(i), cy: y(w), r: 12, fill: "transparent" }, svg);
+      hit.addEventListener("mousemove", () => { const [px, py] = svgPoint(svg, box, x(i), y(w) - 6); tip.show(`<b>${n}</b>, k = ${ks[i]}<br>win rate <span class="n">${w}%</span>`, px, py); });
+      hit.addEventListener("mouseleave", tip.hide);
+    });
+    txt(svg, W - Rr + 8, y(v[4]) + (s ? 4 : 14), n, { style: `font:600 10.5px var(--sans);fill:var(--ink)` });
+  });
+}
+drawScale();
+(() => { const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener && mq.addEventListener("change", () => { drawTrade(); drawScale(); }); })();
+
+/* ---------- 6. Copy buttons + math ---------- */
+(() => {
+  const copy = (btn, getText) => btn.onclick = async () => { try { await navigator.clipboard.writeText(getText()); btn.textContent = "Copied"; } catch (e) { btn.textContent = "Select & copy"; } setTimeout(() => btn.textContent = "Copy", 1500); };
+  document.querySelectorAll(".codebox").forEach(cb => copy(cb.querySelector(".copy"), () => cb.querySelector("pre").textContent));
+  copy(document.getElementById("copyBib"), () => document.getElementById("bibText").textContent);
+})();
+window.addEventListener("load", () => {
+  if (window.renderMathInElement) renderMathInElement(document.body, { delimiters: [{ left: "\\[", right: "\\]", display: true }, { left: "\\(", right: "\\)", display: false }], ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "svg"], throwOnError: false });
+});
+</script>
+</body>
+</html>
